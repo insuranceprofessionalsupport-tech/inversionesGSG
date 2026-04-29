@@ -1495,6 +1495,12 @@ function updateCalc() {
 }
 
 async function guardarPrestamo() {
+  const btn = document.querySelector('#page-calculadora .btn-primary');
+
+btn.disabled = true;
+
+try {
+  
   const clienteId = document.getElementById('calc-cliente').value;
   const importe = parseFloat(document.getElementById('calc-importe').value);
   const tasaPct = parseFloat(document.getElementById('calc-tasa').value) || 0;
@@ -1508,10 +1514,9 @@ async function guardarPrestamo() {
   if (!fechaStr) { toast('Selecciona una fecha de inicio'); return; }
 
   const tasa = tasaPct / 100;
-  const nextId = 'P_' + (Date.now().toString().slice(-6));
+  const nextId = genId('P');
   const nuevoPrestamo = { id: nextId, clienteId, fecha: fechaStr, importe, modalidad, tasa, numCuotas };
-
-  try {
+  
     await supaInsert('prestamos', nuevoPrestamo);
     const cuotas = generarCuotas(nuevoPrestamo);
     await supaInsertMany('cuotas', cuotas);
@@ -1520,6 +1525,9 @@ async function guardarPrestamo() {
   } catch (e) {
     toast('Error al crear préstamo: ' + e.message);
   }
+}
+  } finally {
+  btn.disabled = false;
 }
 
 // ═══════════════════════════════
@@ -1745,7 +1753,10 @@ function toast(msg) {
 }
 
 function genId(prefix) {
-  return prefix + '_' + Date.now().toString(36).toUpperCase();
+  return prefix + '_' +
+    Date.now().toString(36).toUpperCase() +
+    '_' +
+    Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
 function setLoading(msg) {
