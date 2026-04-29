@@ -1780,10 +1780,9 @@ function hideLoading() {
   setTimeout(() => { if (el) el.style.display = 'none'; }, 350);
 }
 
-  async function loginGoogle() {
-    async function verificarSesion() {
+async function verificarSesion() {
 
-  const { data } = await sb.auth.getSession();
+  const { data } = await supabase.auth.getSession();
 
   const session = data.session;
 
@@ -1799,8 +1798,38 @@ function hideLoading() {
       </div>
     `;
 
-    return;
+    return false;
   }
+
+  const email = session.user.email;
+
+  if (email !== 'insuranceprofessionalsupport@gmail.com') {
+
+    await supabase.auth.signOut();
+
+    document.body.innerHTML = `
+      <h2>Acceso denegado</h2>
+    `;
+
+    return false;
+  }
+
+  return true;
+}
+
+async function loginGoogle() {
+
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google'
+  });
+
+  if (error) {
+    console.error(error);
+    alert(error.message);
+  }
+}
+
+window.loginGoogle = loginGoogle;
 
   // CAMBIA ESTE CORREO
   const email = session.user.email;
@@ -1842,18 +1871,44 @@ document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
 // ═══════════════════════════════
 
 (async () => {
+
+  const ok = await verificarSesion();
+
+  if (!ok) return;
+
   try {
+
     await initDemoData();
+
     hideLoading();
+
     showPage('dashboard');
+
   } catch (err) {
+
+    console.error('Error al inicializar:', err);
+
+    setLoading('⚠ Error de conexión. Revisa la consola.');
+
+    setTimeout(() => {
+
+      hideLoading();
+
+      showPage('dashboard');
+
+    }, 2500);
+  }
+
+})();
+  
     console.error('Error al inicializar:', err);
     setLoading('⚠ Error de conexión. Revisa la consola.');
     // Aun así mostrar la app con cache vacío
     setTimeout(() => { hideLoading(); showPage('dashboard'); }, 2500);
   }
 })();
-</script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
 </body>
 </html>
