@@ -1323,59 +1323,64 @@ document.querySelectorAll('.modal-backdrop').forEach(function(b){
    B) Usuario que regresa con cookie/sesión activa → getSession lo detecta.
    onAuthStateChange reacciona en ambos casos una vez que la sesión existe.
 ───────────────────────────────────────── */
-(async function boot() {
+async function boot() {
 
-  // ── Caso A: venimos del redirect de Google ──
-  // El SDK v2 con flujo "implicit" devuelve los tokens en el hash de la URL.
-  // GitHub Pages no hace server-side redirect, así que debemos parsear el hash.
-  var hash = window.location.hash;
-  if (hash && hash.indexOf('access_token') !== -1) {
-    // Convertir el hash en un objeto de parámetros
-    var params = {};
-    hash.replace(/^#/, '').split('&').forEach(function(pair) {
-      var parts = pair.split('=');
-      params[decodeURIComponent(parts[0])] = decodeURIComponent(parts[1] || '');
-    });
+  // Caso: regreso desde Google OAuth
+  const hash = window.location.hash;
 
-    if (params.access_token && params.refresh_token) {
-      // Establecer la sesión manualmente con los tokens del hash
-      var setResult = await sb.auth.setSession({
-        access_token:  params.access_token,
-        refresh_token: params.refresh_token
+  if (hash && hash.includes('access_token')) {
+
+    const params = new URLSearchParams(hash.substring(1));
+
+    const access_token = params.get('access_token');
+    const refresh_token = params.get('refresh_token');
+
+    if (access_token && refresh_token) {
+
+      const { error } = await sb.auth.setSession({
+        access_token,
+        refresh_token
       });
 
-      // Limpiar el hash de la URL sin recargar la página
-      history.replaceState(null, '', window.location.pathname + window.location.search);
+      // limpiar URL
+      window.history.replaceState({}, document.title, window.location.pathname);
 
-      if (setResult.error) {
-        mostrarErrorLogin('Error al procesar la sesión: ' + setResult.error.message);
+      if (error) {
+        console.error(error);
+        mostrarErrorLogin(error.message);
         return;
       }
-      // onAuthStateChange se disparará con SIGNED_IN → arrancarApp() se llama desde allí
-      return;
     }
   }
 
-  // ── Caso B: sesión existente (cookie o localStorage) ──
-  var result  = await sb.auth.getSession();
-  var session = result.data && result.data.session ? result.data.session : null;
+  // Revisar sesión existente
+  const { data } = await sb.auth.getSession();
+
+  const session = data.session;
 
   if (!session) {
-    // Sin sesión → pantalla de login ya visible por defecto
+    mostrarPantallaLogin();
     return;
   }
 
-  var email = session.user.email;
+  const email = session.user.email;
+
   if (email !== CORREO_AUTORIZADO) {
+
     await sb.auth.signOut();
-    mostrarErrorLogin('Acceso denegado. Este correo no está autorizado.');
+
+    mostrarErrorLogin('Acceso denegado');
+
     return;
   }
 
-  // Sesión válida → arrancar
   document.getElementById('nav-email').textContent = email;
+
   arrancarApp();
-})();
+}
+
+// INICIAR APP
+boot();
 </script>
 </body>
 </html>
