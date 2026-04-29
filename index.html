@@ -1873,6 +1873,63 @@ document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
 
 <script>
 
+async function verificarSesion() {
+
+  const { data } = await supabase.auth.getSession();
+
+  const session = data.session;
+
+  if (!session) {
+
+    hideLoading();
+
+    document.body.innerHTML = `
+      <div style="padding:40px;text-align:center">
+        <h2>Debes iniciar sesión</h2>
+
+        <button onclick="loginGoogle()">
+          Entrar con Google
+        </button>
+      </div>
+    `;
+
+    return false;
+  }
+
+  const email = session.user.email;
+
+  if (email !== 'insuranceprofessionalsupport@gmail.com') {
+
+    await supabase.auth.signOut();
+
+    hideLoading();
+
+    document.body.innerHTML = `
+      <h2 style="padding:40px;text-align:center">
+        Acceso denegado
+      </h2>
+    `;
+
+    return false;
+  }
+
+  return true;
+}
+
+async function loginGoogle() {
+
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google'
+  });
+
+  if (error) {
+    console.error(error);
+    alert(error.message);
+  }
+}
+
+window.loginGoogle = loginGoogle;
+
 (async () => {
 
   const ok = await verificarSesion();
