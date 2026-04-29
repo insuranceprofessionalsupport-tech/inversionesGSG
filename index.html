@@ -1869,14 +1869,9 @@ document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
 // ═══════════════════════════════
 //  INIT
 // ═══════════════════════════════
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-(async () => {
-
-  const ok = await verificarSesion();
-
-  if (!ok) return;
-
-  try {
+<script>
 
 (async () => {
 
@@ -1909,15 +1904,7 @@ document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
 
 })();
 
-  
-    console.error('Error al inicializar:', err);
-    setLoading('⚠ Error de conexión. Revisa la consola.');
-    // Aun así mostrar la app con cache vacío
-    setTimeout(() => { hideLoading(); showPage('dashboard'); }, 2500);
-  }
-})();
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</script>
 
-<script>
 </body>
 </html>
