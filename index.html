@@ -653,7 +653,7 @@ sb.auth.onAuthStateChange(function(event, session) {
   if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
     const email = session.user.email;
 
-    if (email !== CORREO_AUTORIZADO) {
+   if (!CORREOS_AUTORIZADOS.includes(email)) {
       // Correo no autorizado
       sb.auth.signOut();
       mostrarErrorLogin('Acceso denegado. Este correo no está autorizado.');
@@ -1368,7 +1368,7 @@ async function boot() {
 
   const email = session.user.email;
 
-  if (email !== CORREO_AUTORIZADO) {
+ if (!CORREOS_AUTORIZADOS.includes(email)) {
 
     await sb.auth.signOut();
 
