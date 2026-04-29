@@ -1878,6 +1878,14 @@ document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
 
   try {
 
+(async () => {
+
+  const ok = await verificarSesion();
+
+  if (!ok) return;
+
+  try {
+
     await initDemoData();
 
     hideLoading();
@@ -1900,6 +1908,7 @@ document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
   }
 
 })();
+
   
     console.error('Error al inicializar:', err);
     setLoading('⚠ Error de conexión. Revisa la consola.');
