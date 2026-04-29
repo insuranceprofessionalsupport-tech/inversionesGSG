@@ -477,6 +477,58 @@
 </script>
 </head>
 <body>
+  <div id="login-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#f7f5f0; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:'DM Sans', sans-serif;">
+  <div style="background:white; padding:40px; border-radius:16px; border:1px solid #e2ddd4; box-shadow:0 10px 25px rgba(0,0,0,0.05); text-align:center; width:90%; max-width:400px;">
+    <h2 style="color:#c8562a; margin-bottom:10px;">CréditoApp</h2>
+    <p style="color:#6b6560; margin-bottom:25px; font-size:14px;">Ingrese su clave de administrador</p>
+    <input type="password" id="pass-input" placeholder="Contraseña" style="width:100%; padding:12px; margin-bottom:15px; border:1px solid #e2ddd4; border-radius:8px; outline:none; text-align:center; font-size:16px;">
+    <button onclick="verificarAcceso()" style="width:100%; padding:12px; background:#c8562a; color:white; border:none; border-radius:8px; font-weight:600; cursor:pointer;">Entrar al Sistema</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  // Configuración de Supabase con tus datos
+  const _supabase = supabase.createClient(
+    'https://cuigctbwhfjeypfvrbvi.supabase.co', 
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1aWdjdGJ3aGZqZXlwZnZyYnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0Mjg4OTYsImV4cCI6MjA5MzAwNDg5Nn0.I4P6LufK2BhH6oWao2cW4wjDR1MNs5MVwwIFT0OBmdQ'
+  );
+
+  // Función de Login
+  function verificarAcceso() {
+    const pass = document.getElementById('pass-input').value;
+    const CLAVE_MAESTRA = "Gabriella2026*"; // <--- CAMBIA TU CONTRASEÑA AQUÍ
+
+    if (pass === CLAVE_MAESTRA) {
+      document.getElementById('login-overlay').style.removeProperty('display');
+      document.getElementById('login-overlay').style.display = 'none';
+      cargarDatosDesdeNube();
+    } else {
+      alert("Acceso denegado. Clave incorrecta.");
+    }
+  }
+
+  // Función para guardar cliente en la nube
+  async function nubeGuardarCliente(cliente) {
+    const { data, error } = await _supabase
+      .from('clientes')
+      .insert([{ 
+        nombre: cliente.nombre, 
+        cedula: cliente.cedula, 
+        telefono: cliente.telefono 
+      }]);
+    if (error) console.error("Error Supabase:", error);
+  }
+
+  // Función para traer datos al iniciar
+  async function cargarDatosDesdeNube() {
+    let { data: clientes, error } = await _supabase.from('clientes').select('*');
+    if (clientes) {
+      console.log("Datos cargados:", clientes);
+      // Aquí el sistema original cargará los clientes
+    }
+  }
+</script>
 
 <!-- NAV -->
 <nav>
