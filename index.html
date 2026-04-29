@@ -839,9 +839,10 @@
 
 const SUPA_URL  = 'https://cuigctbwhfjeypfvrbvi.supabase.co/rest/v1';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1aWdjdGJ3aGZqZXlwZnZyYnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0Mjg4OTYsImV4cCI6MjA5MzAwNDg5Nn0.I4P6LufK2BhH6oWao2cW4wjDR1MNs5MVwwIFT0OBmdQ';
-const supabase = window.supabase.createClient( 'https://cuigctbwhfjeypfvrbvi.supabase.co',
-                                              SUPA_KEY 
-                                            );
+const sb = supabase.createClient(
+  'https://cuigctbwhfjeypfvrbvi.supabase.co',
+  SUPA_KEY
+);
   
 const HEADERS = {
   'Content-Type': 'application/json',
@@ -1782,7 +1783,7 @@ function hideLoading() {
   async function loginGoogle() {
     async function verificarSesion() {
 
-  const { data } = await supabase.auth.getSession();
+  const { data } = await sb.auth.getSession();
 
   const session = data.session;
 
@@ -1806,7 +1807,7 @@ function hideLoading() {
 
   if (email !== 'insuranceprofessionalsupport@gmail.com') {
 
-    await supabase.auth.signOut();
+    await sb.auth.signOut();
 
     document.body.innerHTML = `
       <h2>Acceso denegado</h2>
@@ -1820,7 +1821,7 @@ function hideLoading() {
 
 verificarSesion();
 
-  const { error } = await supabase.auth.signInWithOAuth({
+  const { error } = await sb.auth.signInWithOAuth({
     provider: 'google'
   });
 
