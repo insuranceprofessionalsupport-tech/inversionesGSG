@@ -524,7 +524,10 @@ const sb = window.supabase.createClient(SUPA_PROJECT, SUPA_ANON);
 const REST_BASE = SUPA_PROJECT + '/rest/v1';
 
 // Correo único autorizado
-const CORREO_AUTORIZADO = 'insuranceprofessionalsupport@gmail.com','camargoperezmoises@gmail.com';
+const CORREOS_AUTORIZADOS = [
+  'insuranceprofessionalsupport@gmail.com',
+  'camargoperezmoises@gmail.com'
+];
 
 /* ─────────────────────────────────────────
    2. CACHE EN MEMORIA + CRUD REST
