@@ -1,0 +1,1619 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CréditoApp — Gestión de Préstamos</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f7f5f0;
+    --surface: #ffffff;
+    --surface2: #f0ede6;
+    --border: #e2ddd4;
+    --text: #1a1814;
+    --text2: #6b6560;
+    --text3: #9e9990;
+    --accent: #c8562a;
+    --accent-light: #fdf0ea;
+    --accent-dark: #9a3d1c;
+    --green: #2d7a4f;
+    --green-light: #eaf4ee;
+    --amber: #c47a15;
+    --amber-light: #fef9ec;
+    --blue: #1e5fa3;
+    --blue-light: #eff4fd;
+    --red: #c23b3b;
+    --red-light: #fdf0f0;
+    --radius: 10px;
+    --radius-lg: 16px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06);
+    --font: 'DM Sans', sans-serif;
+    --mono: 'DM Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ─── NAV ─── */
+  nav {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .nav-brand {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .nav-brand svg { width: 20px; height: 20px; }
+
+  .nav-tabs {
+    display: flex;
+    gap: 0;
+    flex: 1;
+  }
+
+  .nav-tab {
+    background: none;
+    border: none;
+    padding: 0 14px;
+    height: 56px;
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text2);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .nav-tab:hover { color: var(--text); background: var(--bg); }
+  .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ─── LAYOUT ─── */
+  .page { display: none; padding: 1.5rem; max-width: 1100px; margin: 0 auto; width: 100%; }
+  .page.active { display: block; }
+
+  .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+  }
+
+  .page-title {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  /* ─── CARDS ─── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    padding: 1.25rem;
+  }
+
+  .card-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.5rem;
+  }
+
+  /* ─── STAT CARDS ─── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    box-shadow: var(--shadow);
+  }
+
+  .stat-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-bottom: 6px;
+  }
+
+  .stat-value {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    font-family: var(--mono);
+  }
+
+  .stat-sub {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 2px;
+  }
+
+  /* ─── BUTTONS ─── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: var(--radius);
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    transition: all 0.12s;
+    white-space: nowrap;
+  }
+
+  .btn:hover { background: var(--surface2); }
+  .btn:active { transform: scale(0.98); }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  .btn-primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+
+  .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 7px; }
+
+  .btn-danger { color: var(--red); border-color: var(--red); }
+  .btn-danger:hover { background: var(--red-light); }
+
+  .btn-success { color: var(--green); border-color: var(--green); }
+  .btn-success:hover { background: var(--green-light); }
+
+  /* ─── FORMS ─── */
+  .form-group { margin-bottom: 1rem; }
+
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text2);
+    margin-bottom: 4px;
+  }
+
+  input[type="text"], input[type="number"], input[type="date"],
+  input[type="email"], select, textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-family: var(--font);
+    font-size: 13px;
+    color: var(--text);
+    background: var(--surface);
+    transition: border-color 0.12s, box-shadow 0.12s;
+    outline: none;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(200, 86, 42, 0.12);
+  }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+  /* ─── TABLE ─── */
+  .table-wrap { overflow-x: auto; border-radius: var(--radius-lg); border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+  thead th {
+    background: var(--surface2);
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  tbody td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--bg); }
+
+  /* ─── BADGES ─── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .badge-green { background: var(--green-light); color: var(--green); }
+  .badge-red { background: var(--red-light); color: var(--red); }
+  .badge-amber { background: var(--amber-light); color: var(--amber); }
+  .badge-blue { background: var(--blue-light); color: var(--blue); }
+  .badge-gray { background: var(--surface2); color: var(--text2); }
+
+  /* ─── MODAL ─── */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(26,24,20,0.45);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .modal-backdrop.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    width: 100%;
+    max-width: 520px;
+    box-shadow: var(--shadow-md);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .modal-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ─── SEARCH ─── */
+  .search-wrap {
+    position: relative;
+    flex: 1;
+    max-width: 300px;
+  }
+
+  .search-wrap input {
+    padding-left: 32px;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 9px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text3);
+    pointer-events: none;
+  }
+
+  /* ─── PLAN DE PAGOS ─── */
+  .plan-table { font-size: 12px; }
+  .plan-table thead th { font-size: 10px; }
+  .plan-table td { padding: 7px 12px; }
+
+  /* ─── PROGRESS BAR ─── */
+  .progress-bar {
+    background: var(--surface2);
+    border-radius: 20px;
+    height: 6px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    border-radius: 20px;
+    background: var(--accent);
+    transition: width 0.3s ease;
+  }
+
+  /* ─── EMPTY STATE ─── */
+  .empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text3);
+  }
+
+  .empty-state p { font-size: 14px; }
+
+  /* ─── DASHBOARD LOANS LIST ─── */
+  .loan-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .loan-row:last-child { border-bottom: none; }
+
+  .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--accent-light);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  /* ─── FILTER TABS ─── */
+  .filter-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--surface2);
+    border-radius: var(--radius);
+    padding: 3px;
+    border: 1px solid var(--border);
+  }
+
+  .filter-tab {
+    background: none;
+    border: none;
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-family: var(--font);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+
+  .filter-tab.active {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
+  }
+
+  /* Toasts */
+  #toast-container {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .toast {
+    background: var(--text);
+    color: var(--bg);
+    padding: 10px 16px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: var(--shadow-md);
+    animation: slideIn 0.2s ease;
+  }
+
+  @keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  .mono { font-family: var(--mono); }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 640px) {
+    .form-row, .form-row-3 { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    nav { gap: 0; }
+    .nav-brand span { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-brand">
+    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="2" y="3" width="16" height="14" rx="2.5" fill="currentColor" opacity="0.15"/>
+      <path d="M10 7v6M7.5 9.5C7.5 8.12 8.62 7 10 7s2.5 1.12 2.5 2.5c0 1.38-1.12 2.5-2.5 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="10" cy="10" r="3" stroke="currentColor" stroke-width="1.5"/>
+    </svg>
+    <span>CréditoApp</span>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('dashboard')">Dashboard</button>
+    <button class="nav-tab" onclick="showPage('clientes')">Clientes</button>
+    <button class="nav-tab" onclick="showPage('prestamos')">Préstamos</button>
+    <button class="nav-tab" onclick="showPage('calculadora')">Calculadora</button>
+    <button class="nav-tab" onclick="showPage('cobros')">Cobros</button>
+    <button class="nav-tab" onclick="showPage('buscar')">Buscador</button>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════
+     PÁGINA: DASHBOARD
+═══════════════════════════════════════════ -->
+<div class="page active" id="page-dashboard">
+  <div class="page-header">
+    <h1 class="page-title">Resumen de cartera</h1>
+    <div class="filter-tabs">
+      <button class="filter-tab active" onclick="setDashFilter(this,'todos')">Todos</button>
+      <button class="filter-tab" onclick="setDashFilter(this,'activo')">Activo</button>
+      <button class="filter-tab" onclick="setDashFilter(this,'mora')">Mora</button>
+      <button class="filter-tab" onclick="setDashFilter(this,'finalizado')">Finalizado</button>
+    </div>
+  </div>
+
+  <div class="stats-grid" id="dash-stats"></div>
+
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+    <div class="card">
+      <div class="card-title">Préstamos activos</div>
+      <div id="dash-activos"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Cuotas próximas a vencer (7 días)</div>
+      <div id="dash-proximas"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     PÁGINA: CLIENTES
+═══════════════════════════════════════════ -->
+<div class="page" id="page-clientes">
+  <div class="page-header">
+    <h1 class="page-title">Clientes</h1>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <div class="search-wrap">
+        <span class="search-icon">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><circle cx="8.5" cy="8.5" r="5.75" stroke="currentColor" stroke-width="1.5"/><path d="M13 13l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </span>
+        <input type="text" placeholder="Buscar cliente..." oninput="renderClientes(this.value)" id="cliente-search">
+      </div>
+      <button class="btn btn-primary" onclick="abrirModalCliente()">+ Nuevo cliente</button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Código</th><th>Nombre</th><th>Cédula</th><th>Teléfono</th><th>Domicilio</th><th>Préstamos</th><th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="clientes-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     PÁGINA: PRÉSTAMOS
+═══════════════════════════════════════════ -->
+<div class="page" id="page-prestamos">
+  <div class="page-header">
+    <h1 class="page-title">Préstamos</h1>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <div class="filter-tabs">
+        <button class="filter-tab active" onclick="setPrestamoFilter(this,'todos')">Todos</button>
+        <button class="filter-tab" onclick="setPrestamoFilter(this,'activo')">Activo</button>
+        <button class="filter-tab" onclick="setPrestamoFilter(this,'mora')">Mora</button>
+        <button class="filter-tab" onclick="setPrestamoFilter(this,'finalizado')">Finalizado</button>
+      </div>
+      <button class="btn btn-primary" onclick="showPage('calculadora')">+ Nuevo préstamo</button>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Cliente</th><th>Fecha</th><th>Importe</th><th>Modalidad</th><th>Tasa</th><th>Total a pagar</th><th>Pagado</th><th>Saldo</th><th>Estado</th><th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="prestamos-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     PÁGINA: CALCULADORA
+═══════════════════════════════════════════ -->
+<div class="page" id="page-calculadora">
+  <div class="page-header">
+    <h1 class="page-title">Calculadora de préstamos</h1>
+  </div>
+  <div style="display:grid;grid-template-columns:380px 1fr;gap:1.25rem;align-items:start;">
+    <div class="card">
+      <div class="card-title" style="margin-bottom:1rem;">Parámetros del crédito</div>
+      <div class="form-group">
+        <label>Cliente</label>
+        <select id="calc-cliente" onchange="updateCalc()">
+          <option value="">Seleccionar cliente...</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Importe del crédito ($)</label>
+        <input type="number" id="calc-importe" value="500000" min="1" oninput="updateCalc()">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Modalidad</label>
+          <select id="calc-modalidad" onchange="updateCalc()">
+            <option value="diario">Diario</option>
+            <option value="semanal">Semanal</option>
+            <option value="quincenal" selected>Quincenal</option>
+            <option value="mensual">Mensual</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Número de cuotas</label>
+          <input type="number" id="calc-cuotas" value="4" min="1" max="60" oninput="updateCalc()">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Tasa de interés (%)</label>
+          <input type="number" id="calc-tasa" value="20" min="0" max="200" step="0.1" oninput="updateCalc()">
+        </div>
+        <div class="form-group">
+          <label>Fecha inicio</label>
+          <input type="date" id="calc-fecha" oninput="updateCalc()">
+        </div>
+      </div>
+
+      <div style="background:var(--accent-light);border-radius:var(--radius);padding:1rem;margin-top:0.5rem;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <div class="stat-label">Cuota</div>
+            <div class="stat-value" id="res-cuota" style="font-size:18px;color:var(--accent)">$0</div>
+          </div>
+          <div>
+            <div class="stat-label">Total a pagar</div>
+            <div class="stat-value" id="res-total" style="font-size:18px;">$0</div>
+          </div>
+          <div>
+            <div class="stat-label">Interés total</div>
+            <div class="stat-value" id="res-interes" style="font-size:18px;color:var(--green)">$0</div>
+          </div>
+          <div>
+            <div class="stat-label">Último pago</div>
+            <div class="stat-value" id="res-ultimo" style="font-size:12px;font-weight:500;color:var(--text2)">—</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" style="width:100%;margin-top:1rem;justify-content:center;" onclick="guardarPrestamo()">
+        Crear préstamo ↗
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Plan de pagos</div>
+      <div id="plan-pagos-container">
+        <div class="empty-state"><p>Configure los parámetros para ver el plan de pagos</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     PÁGINA: COBROS
+═══════════════════════════════════════════ -->
+<div class="page" id="page-cobros">
+  <div class="page-header">
+    <h1 class="page-title">Gestión de cobros</h1>
+    <div style="display:flex;gap:8px;">
+      <div class="search-wrap">
+        <span class="search-icon">
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><circle cx="8.5" cy="8.5" r="5.75" stroke="currentColor" stroke-width="1.5"/><path d="M13 13l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </span>
+        <input type="text" placeholder="Buscar por cliente..." oninput="renderCobros(this.value)" id="cobros-search">
+      </div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" onclick="setCobrosFilter(this,'todos')">Todas</button>
+        <button class="filter-tab" onclick="setCobrosFilter(this,'pendiente')">Pendiente</button>
+        <button class="filter-tab" onclick="setCobrosFilter(this,'mora')">En mora</button>
+        <button class="filter-tab" onclick="setCobrosFilter(this,'pagado')">Pagado</button>
+      </div>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Cuota</th><th>Cliente</th><th>Préstamo</th><th>Vence</th><th>Valor cuota</th><th>Pagado</th><th>Saldo cuota</th><th>Estado</th><th>Días mora</th><th>Acción</th>
+        </tr>
+      </thead>
+      <tbody id="cobros-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     PÁGINA: BUSCADOR
+═══════════════════════════════════════════ -->
+<div class="page" id="page-buscar">
+  <div class="page-header">
+    <h1 class="page-title">Buscador inteligente</h1>
+  </div>
+  <div class="card" style="margin-bottom:1.25rem;">
+    <div style="display:flex;gap:12px;align-items:flex-end;">
+      <div class="form-group" style="flex:1;margin-bottom:0;">
+        <label>Buscar cliente</label>
+        <input type="text" id="buscar-input" placeholder="Nombre o código del cliente..." oninput="buscarCliente(this.value)">
+      </div>
+    </div>
+  </div>
+  <div id="buscar-resultado"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     MODALES
+═══════════════════════════════════════════ -->
+
+<!-- Modal: Nuevo/editar cliente -->
+<div class="modal-backdrop" id="modal-cliente">
+  <div class="modal">
+    <div class="modal-title">
+      <span id="modal-cliente-title">Nuevo cliente</span>
+      <button class="btn btn-sm" onclick="cerrarModal('modal-cliente')">✕</button>
+    </div>
+    <input type="hidden" id="cliente-edit-id">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Código</label>
+        <input type="text" id="cliente-codigo" placeholder="Cli_001">
+      </div>
+      <div class="form-group">
+        <label>Cédula / DNI</label>
+        <input type="text" id="cliente-cedula" placeholder="12345678">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Nombre completo *</label>
+      <input type="text" id="cliente-nombre" placeholder="Juan Pérez García">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Teléfono</label>
+        <input type="text" id="cliente-telefono" placeholder="3001234567">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="text" id="cliente-email" placeholder="juan@email.com">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Domicilio</label>
+      <input type="text" id="cliente-domicilio" placeholder="Calle 123 # 45-67">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="cerrarModal('modal-cliente')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCliente()">Guardar cliente</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Registrar pago -->
+<div class="modal-backdrop" id="modal-pago">
+  <div class="modal">
+    <div class="modal-title">
+      <span>Registrar pago</span>
+      <button class="btn btn-sm" onclick="cerrarModal('modal-pago')">✕</button>
+    </div>
+    <input type="hidden" id="pago-cuota-id">
+    <div id="pago-info" style="background:var(--surface2);border-radius:var(--radius);padding:0.75rem;margin-bottom:1rem;font-size:13px;"></div>
+    <div class="form-group">
+      <label>Monto a pagar ($)</label>
+      <input type="number" id="pago-monto" placeholder="0" min="1">
+    </div>
+    <div class="form-group">
+      <label>Fecha de pago</label>
+      <input type="date" id="pago-fecha">
+    </div>
+    <div class="form-group">
+      <label>Observación (opcional)</label>
+      <input type="text" id="pago-obs" placeholder="Nota de cobro...">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="cerrarModal('modal-pago')">Cancelar</button>
+      <button class="btn btn-success" onclick="confirmarPago()">Registrar pago</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Ver cuotas de un préstamo -->
+<div class="modal-backdrop" id="modal-cuotas">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-title">
+      <span id="modal-cuotas-title">Plan de cuotas</span>
+      <button class="btn btn-sm" onclick="cerrarModal('modal-cuotas')">✕</button>
+    </div>
+    <div id="modal-cuotas-content"></div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- ═══════════════════════════════════════════
+     LÓGICA JS
+═══════════════════════════════════════════ -->
+<script>
+// ═══════════════════════════════
+//  BASE DE DATOS LOCAL (localStorage)
+// ═══════════════════════════════
+
+const DB_KEYS = { clientes: 'ca_clientes', prestamos: 'ca_prestamos', cuotas: 'ca_cuotas' };
+
+function dbGet(key) {
+  try { return JSON.parse(localStorage.getItem(DB_KEYS[key]) || '[]'); } catch { return []; }
+}
+function dbSet(key, data) {
+  localStorage.setItem(DB_KEYS[key], JSON.stringify(data));
+}
+function genId(prefix) {
+  return prefix + '_' + Date.now().toString(36).toUpperCase();
+}
+
+// ═══════════════════════════════
+//  INICIALIZACIÓN CON DATOS DEL EXCEL
+// ═══════════════════════════════
+
+function initDemoData() {
+  if (dbGet('clientes').length > 0) return;
+
+  const clientes = [
+    { id: 'Cli_001', codigo: 'Cli_001', nombre: 'Claudia Castellar', cedula: '', telefono: '3012484107', email: '', domicilio: '' },
+    { id: 'Cli_002', codigo: 'Cli_002', nombre: 'Kaler Florez', cedula: '', telefono: '3015538716', email: '', domicilio: '' },
+    { id: 'Cli_003', codigo: 'Cli_003', nombre: 'Lewin Macias', cedula: '', telefono: '3044634119', email: '', domicilio: '' },
+    { id: 'Cli_004', codigo: 'Cli_004', nombre: 'Michel Avila', cedula: '', telefono: '3015771350', email: '', domicilio: '' },
+    { id: 'cli_005', codigo: 'cli_005', nombre: 'Brayan Acuña', cedula: '', telefono: '3144747788', email: '', domicilio: '' },
+    { id: 'cli_006', codigo: 'cli_006', nombre: 'Harry', cedula: '', telefono: '3229491531', email: '', domicilio: '' },
+    { id: 'cli_007', codigo: 'cli_007', nombre: 'Ingrid Gonzalez', cedula: '', telefono: '', email: '', domicilio: '' },
+    { id: 'cli_009', codigo: 'cli_009', nombre: 'Jesus Orellano', cedula: '', telefono: '3135004011', email: '', domicilio: '' },
+    { id: 'cli_010', codigo: 'cli_010', nombre: 'Brenda Tapia', cedula: '', telefono: '3044608233', email: '', domicilio: '' },
+    { id: 'cli_011', codigo: 'cli_011', nombre: 'Carlos Coneo', cedula: '', telefono: '3004823201', email: '', domicilio: '' },
+    { id: 'cli_012', codigo: 'cli_012', nombre: 'David Beltra', cedula: '', telefono: '3006656578', email: '', domicilio: '' },
+    { id: 'cli_013', codigo: 'cli_013', nombre: 'Luis Serna', cedula: '', telefono: '3507121800', email: '', domicilio: '' },
+    { id: 'cli_014', codigo: 'cli_014', nombre: 'Benjamin', cedula: '', telefono: '3019768748', email: '', domicilio: '' },
+  ];
+  dbSet('clientes', clientes);
+
+  // Excel serial date base: Jan 1 1900 = 1 (with Excel's leap year bug offset)
+  function excelToDate(serial) {
+    const d = new Date((serial - 25569) * 86400 * 1000);
+    return d.toISOString().split('T')[0];
+  }
+
+  const prestamos = [
+    { id: 'P_28', clienteId: 'Cli_004', fecha: excelToDate(46139), importe: 800000, modalidad: 'mensual', tasa: 0.4, numCuotas: 2 },
+    { id: 'P_27', clienteId: 'Cli_001', fecha: excelToDate(46127), importe: 200000, modalidad: 'quincenal', tasa: 0.4, numCuotas: 4 },
+    { id: 'P_26', clienteId: 'Cli_003', fecha: excelToDate(46127), importe: 400000, modalidad: 'quincenal', tasa: 0.2, numCuotas: 2 },
+    { id: 'P_25', clienteId: 'cli_014', fecha: excelToDate(46127), importe: 200000, modalidad: 'quincenal', tasa: 0.1, numCuotas: 1 },
+    { id: 'P_24', clienteId: 'Cli_002', fecha: excelToDate(46127), importe: 200000, modalidad: 'quincenal', tasa: 0.25, numCuotas: 1 },
+    { id: 'P_23', clienteId: 'Cli_001', fecha: excelToDate(46127), importe: 200000, modalidad: 'quincenal', tasa: 0.3, numCuotas: 3 },
+    { id: 'P_22', clienteId: 'Cli_002', fecha: excelToDate(46112), importe: 200000, modalidad: 'quincenal', tasa: 0.2, numCuotas: 2 },
+    { id: 'P_21', clienteId: 'cli_013', fecha: excelToDate(46112), importe: 600000, modalidad: 'quincenal', tasa: 0, numCuotas: 6 },
+    { id: 'P_20', clienteId: 'cli_014', fecha: excelToDate(46112), importe: 300000, modalidad: 'quincenal', tasa: 0.2, numCuotas: 2 },
+    { id: 'P_11', clienteId: 'cli_010', fecha: excelToDate(46089), importe: 300000, modalidad: 'quincenal', tasa: 0.2, numCuotas: 2 },
+  ];
+  dbSet('prestamos', prestamos);
+
+  // Generar cuotas para cada préstamo
+  const todasCuotas = [];
+  prestamos.forEach(p => {
+    const cuotas = generarCuotas(p);
+    todasCuotas.push(...cuotas);
+  });
+
+  // Marcar cuotas pagadas según historial del Excel
+  // Pagadas conocidas del Excel
+  const pagadas = {
+    'P_22-1': excelToDate(46127), 'P_21-1': excelToDate(46127),
+    'P_20-1': excelToDate(46127), 'P_28-0': excelToDate(46139),
+    'P_11-0': excelToDate(46111)
+  };
+  todasCuotas.forEach(c => {
+    const key = c.prestamoId + '-' + c.num;
+    if (pagadas[key]) {
+      c.pagado = c.valor;
+      c.fechaPago = pagadas[key];
+      c.estado = 'pagado';
+    }
+  });
+
+  dbSet('cuotas', todasCuotas);
+}
+
+// ═══════════════════════════════
+//  LÓGICA DE CÁLCULO (replicada del Excel)
+// ═══════════════════════════════
+
+function diasPorModalidad(modalidad) {
+  return { diario: 1, semanal: 7, quincenal: 15, mensual: 30 }[modalidad] || 15;
+}
+
+function calcularCuota(importe, tasa, numCuotas) {
+  const totalConInteres = importe * (1 + tasa);
+  return Math.round(totalConInteres / numCuotas * 100) / 100;
+}
+
+function calcularTotal(importe, tasa) {
+  return Math.round(importe * (1 + tasa) * 100) / 100;
+}
+
+function generarCuotas(prestamo) {
+  const cuotas = [];
+  const dias = diasPorModalidad(prestamo.modalidad);
+  const valorCuota = calcularCuota(prestamo.importe, prestamo.tasa, prestamo.numCuotas);
+  const total = calcularTotal(prestamo.importe, prestamo.tasa);
+  const fechaInicio = new Date(prestamo.fecha + 'T12:00:00');
+
+  for (let i = 0; i < prestamo.numCuotas; i++) {
+    const fechaVence = new Date(fechaInicio);
+    fechaVence.setDate(fechaVence.getDate() + dias * (i + 1));
+    const esUltima = i === prestamo.numCuotas - 1;
+    const valor = esUltima ? Math.round((total - valorCuota * i) * 100) / 100 : valorCuota;
+
+    cuotas.push({
+      id: genId('C'),
+      prestamoId: prestamo.id,
+      clienteId: prestamo.clienteId,
+      num: i,
+      label: 'Cuota ' + (i + 1),
+      valor: valor,
+      fechaVence: fechaVence.toISOString().split('T')[0],
+      pagado: 0,
+      fechaPago: null,
+      estado: 'pendiente',
+      obs: ''
+    });
+  }
+  return cuotas;
+}
+
+function getEstadoPrestamoCalc(prestamoId) {
+  const cuotas = dbGet('cuotas').filter(c => c.prestamoId === prestamoId);
+  if (!cuotas.length) return 'activo';
+  const hoy = new Date().toISOString().split('T')[0];
+  const pendientes = cuotas.filter(c => c.estado !== 'pagado');
+  if (!pendientes.length) return 'finalizado';
+  const enMora = pendientes.some(c => c.fechaVence < hoy);
+  return enMora ? 'mora' : 'activo';
+}
+
+function getDiasMora(fechaVence) {
+  const hoy = new Date();
+  const vence = new Date(fechaVence + 'T12:00:00');
+  if (vence >= hoy) return 0;
+  return Math.floor((hoy - vence) / (1000 * 60 * 60 * 24));
+}
+
+function getPrestamoResumen(prestamoId) {
+  const cuotas = dbGet('cuotas').filter(c => c.prestamoId === prestamoId);
+  const totalPagado = cuotas.reduce((s, c) => s + (c.pagado || 0), 0);
+  const saldo = cuotas.reduce((s, c) => s + Math.max(0, c.valor - (c.pagado || 0)), 0);
+  return { totalPagado, saldo, cuotas };
+}
+
+// ═══════════════════════════════
+//  NAVEGACIÓN
+// ═══════════════════════════════
+
+let dashFilter = 'todos', prestamoFilter = 'todos', cobrosFilter = 'todos';
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(t => {
+    if (t.textContent.toLowerCase().includes(name === 'buscar' ? 'busca' : name.substr(0,4))) t.classList.add('active');
+  });
+
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'clientes') renderClientes();
+  if (name === 'prestamos') renderPrestamos();
+  if (name === 'calculadora') initCalculadora();
+  if (name === 'cobros') renderCobros();
+  if (name === 'buscar') buscarCliente('');
+}
+
+// ═══════════════════════════════
+//  DASHBOARD
+// ═══════════════════════════════
+
+function setDashFilter(btn, val) {
+  dashFilter = val;
+  document.querySelectorAll('#page-dashboard .filter-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  renderDashboard();
+}
+
+function renderDashboard() {
+  const prestamos = dbGet('prestamos');
+  const cuotas = dbGet('cuotas');
+  const clientes = dbGet('clientes');
+  const hoy = new Date().toISOString().split('T')[0];
+
+  let filtrados = prestamos;
+  if (dashFilter !== 'todos') filtrados = prestamos.filter(p => getEstadoPrestamoCalc(p.id) === dashFilter);
+
+  const totalCapital = filtrados.reduce((s, p) => s + p.importe, 0);
+  const totalCobrar = filtrados.reduce((s, p) => s + getPrestamoResumen(p.id).saldo, 0);
+  const totalPagado = filtrados.reduce((s, p) => s + getPrestamoResumen(p.id).totalPagado, 0);
+  const totalInteresGanado = filtrados.reduce((s, p) => {
+    const res = getPrestamoResumen(p.id);
+    const ganancia = res.totalPagado - p.importe;
+    return s + Math.max(0, ganancia);
+  }, 0);
+
+  document.getElementById('dash-stats').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Capital prestado</div>
+      <div class="stat-value" style="color:var(--blue)">${formatCOP(totalCapital)}</div>
+      <div class="stat-sub">${filtrados.length} préstamo(s)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total cobrado</div>
+      <div class="stat-value" style="color:var(--green)">${formatCOP(totalPagado)}</div>
+      <div class="stat-sub">Recaudado</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Saldo por cobrar</div>
+      <div class="stat-value" style="color:var(--amber)">${formatCOP(totalCobrar)}</div>
+      <div class="stat-sub">En la calle</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Interés ganado</div>
+      <div class="stat-value" style="color:var(--accent)">${formatCOP(totalInteresGanado)}</div>
+      <div class="stat-sub">Ganancia neta</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">En mora</div>
+      <div class="stat-value" style="color:var(--red)">${prestamos.filter(p => getEstadoPrestamoCalc(p.id) === 'mora').length}</div>
+      <div class="stat-sub">Préstamos vencidos</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Clientes activos</div>
+      <div class="stat-value">${clientes.length}</div>
+      <div class="stat-sub">Registrados</div>
+    </div>
+  `;
+
+  // Préstamos activos
+  const activos = prestamos.filter(p => getEstadoPrestamoCalc(p.id) === 'activo' || getEstadoPrestamoCalc(p.id) === 'mora');
+  const divActivos = document.getElementById('dash-activos');
+  if (!activos.length) { divActivos.innerHTML = '<div class="empty-state"><p>Sin préstamos activos</p></div>'; }
+  else {
+    divActivos.innerHTML = activos.slice(0,8).map(p => {
+      const cliente = clientes.find(c => c.id === p.clienteId);
+      const res = getPrestamoResumen(p.id);
+      const pct = Math.min(100, Math.round((res.totalPagado / calcularTotal(p.importe, p.tasa)) * 100));
+      const est = getEstadoPrestamoCalc(p.id);
+      return `<div class="loan-row">
+        <div class="avatar">${iniciales(cliente?.nombre || '?')}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500">${cliente?.nombre || 'Desconocido'}</div>
+          <div class="progress-bar" style="margin-top:5px;"><div class="progress-fill" style="width:${pct}%;background:${est==='mora'?'var(--red)':'var(--accent)'}"></div></div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:12px;font-family:var(--mono);font-weight:500">${formatCOP(res.saldo)}</div>
+          <div style="font-size:11px;color:var(--text3)">${pct}% pagado</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Cuotas próximas
+  const en7dias = new Date(); en7dias.setDate(en7dias.getDate() + 7);
+  const proximas = cuotas.filter(c => c.estado !== 'pagado' && c.fechaVence >= hoy && c.fechaVence <= en7dias.toISOString().split('T')[0]);
+  const divProximas = document.getElementById('dash-proximas');
+  if (!proximas.length) { divProximas.innerHTML = '<div class="empty-state"><p>Sin cuotas próximas a vencer</p></div>'; }
+  else {
+    divProximas.innerHTML = proximas.map(c => {
+      const cliente = clientes.find(cl => cl.id === c.clienteId);
+      const dias = Math.round((new Date(c.fechaVence + 'T12:00:00') - new Date()) / (1000*60*60*24));
+      return `<div class="loan-row">
+        <div class="avatar" style="background:var(--amber-light);color:var(--amber)">${iniciales(cliente?.nombre || '?')}</div>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:500">${cliente?.nombre || '?'} — ${c.label}</div>
+          <div style="font-size:11px;color:var(--text3)">${formatDate(c.fechaVence)}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:12px;font-family:var(--mono);font-weight:500">${formatCOP(c.valor)}</div>
+          <div style="font-size:11px;color:${dias<=2?'var(--red)':'var(--amber)'}">${dias <= 0 ? 'hoy' : 'en '+dias+'d'}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+}
+
+// ═══════════════════════════════
+//  CLIENTES
+// ═══════════════════════════════
+
+function renderClientes(q = '') {
+  let clientes = dbGet('clientes');
+  if (q) clientes = clientes.filter(c => c.nombre.toLowerCase().includes(q.toLowerCase()) || c.codigo.toLowerCase().includes(q.toLowerCase()));
+  const prestamos = dbGet('prestamos');
+  const tbody = document.getElementById('clientes-tbody');
+  if (!clientes.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><p>No hay clientes. <button class="btn btn-sm btn-primary" onclick="abrirModalCliente()">Crear primero</button></p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = clientes.map(c => {
+    const nPrestamos = prestamos.filter(p => p.clienteId === c.id).length;
+    return `<tr>
+      <td><span class="mono" style="font-size:12px;color:var(--text3)">${c.codigo}</span></td>
+      <td><div style="display:flex;align-items:center;gap:8px"><div class="avatar" style="width:28px;height:28px;font-size:11px">${iniciales(c.nombre)}</div>${c.nombre}</div></td>
+      <td>${c.cedula || '<span style="color:var(--text3)">—</span>'}</td>
+      <td>${c.telefono || '<span style="color:var(--text3)">—</span>'}</td>
+      <td>${c.domicilio || '<span style="color:var(--text3)">—</span>'}</td>
+      <td><span class="badge ${nPrestamos > 0 ? 'badge-blue' : 'badge-gray'}">${nPrestamos} préstamo(s)</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-sm" onclick="editarCliente('${c.id}')">Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="eliminarCliente('${c.id}')">Eliminar</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function abrirModalCliente(id = null) {
+  document.getElementById('cliente-edit-id').value = id || '';
+  document.getElementById('modal-cliente-title').textContent = id ? 'Editar cliente' : 'Nuevo cliente';
+  ['codigo','cedula','nombre','telefono','email','domicilio'].forEach(f => {
+    document.getElementById('cliente-' + f).value = '';
+  });
+  if (id) {
+    const c = dbGet('clientes').find(c => c.id === id);
+    if (c) {
+      document.getElementById('cliente-codigo').value = c.codigo;
+      document.getElementById('cliente-cedula').value = c.cedula;
+      document.getElementById('cliente-nombre').value = c.nombre;
+      document.getElementById('cliente-telefono').value = c.telefono;
+      document.getElementById('cliente-email').value = c.email;
+      document.getElementById('cliente-domicilio').value = c.domicilio;
+    }
+  } else {
+    const clientes = dbGet('clientes');
+    const nextNum = clientes.length + 1;
+    document.getElementById('cliente-codigo').value = 'Cli_' + String(nextNum).padStart(3, '0');
+  }
+  document.getElementById('modal-cliente').classList.add('open');
+}
+
+function editarCliente(id) { abrirModalCliente(id); }
+
+function guardarCliente() {
+  const nombre = document.getElementById('cliente-nombre').value.trim();
+  if (!nombre) { toast('El nombre es obligatorio'); return; }
+  const editId = document.getElementById('cliente-edit-id').value;
+  const clientes = dbGet('clientes');
+  const nuevo = {
+    id: editId || genId('CLI'),
+    codigo: document.getElementById('cliente-codigo').value.trim() || genId('C'),
+    nombre,
+    cedula: document.getElementById('cliente-cedula').value.trim(),
+    telefono: document.getElementById('cliente-telefono').value.trim(),
+    email: document.getElementById('cliente-email').value.trim(),
+    domicilio: document.getElementById('cliente-domicilio').value.trim(),
+  };
+  if (editId) {
+    const idx = clientes.findIndex(c => c.id === editId);
+    if (idx >= 0) clientes[idx] = nuevo;
+  } else {
+    clientes.push(nuevo);
+  }
+  dbSet('clientes', clientes);
+  cerrarModal('modal-cliente');
+  renderClientes(document.getElementById('cliente-search')?.value || '');
+  populateClienteSelect();
+  toast(editId ? 'Cliente actualizado' : 'Cliente creado');
+}
+
+function eliminarCliente(id) {
+  if (!confirm('¿Eliminar este cliente? Se eliminarán también sus préstamos y cuotas.')) return;
+  dbSet('clientes', dbGet('clientes').filter(c => c.id !== id));
+  const pids = dbGet('prestamos').filter(p => p.clienteId === id).map(p => p.id);
+  dbSet('prestamos', dbGet('prestamos').filter(p => p.clienteId !== id));
+  dbSet('cuotas', dbGet('cuotas').filter(c => !pids.includes(c.prestamoId)));
+  renderClientes();
+  toast('Cliente eliminado');
+}
+
+// ═══════════════════════════════
+//  PRÉSTAMOS
+// ═══════════════════════════════
+
+function setPrestamoFilter(btn, val) {
+  prestamoFilter = val;
+  document.querySelectorAll('#page-prestamos .filter-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  renderPrestamos();
+}
+
+function renderPrestamos() {
+  let prestamos = dbGet('prestamos');
+  const clientes = dbGet('clientes');
+  if (prestamoFilter !== 'todos') prestamos = prestamos.filter(p => getEstadoPrestamoCalc(p.id) === prestamoFilter);
+  prestamos = prestamos.slice().reverse();
+
+  const tbody = document.getElementById('prestamos-tbody');
+  if (!prestamos.length) {
+    tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state"><p>Sin préstamos. <button class="btn btn-sm btn-primary" onclick="showPage('calculadora')">Crear préstamo</button></p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = prestamos.map(p => {
+    const cliente = clientes.find(c => c.id === p.clienteId);
+    const res = getPrestamoResumen(p.id);
+    const total = calcularTotal(p.importe, p.tasa);
+    const estado = getEstadoPrestamoCalc(p.id);
+    const badgeClass = { activo: 'badge-blue', mora: 'badge-red', finalizado: 'badge-green' }[estado];
+    const badgeLabel = { activo: 'Activo', mora: 'En mora', finalizado: 'Finalizado' }[estado];
+    return `<tr>
+      <td class="mono" style="font-size:12px;color:var(--text3)">#${p.id.replace('P_','')}</td>
+      <td>${cliente?.nombre || 'Desconocido'}</td>
+      <td style="font-size:12px">${formatDate(p.fecha)}</td>
+      <td class="mono">${formatCOP(p.importe)}</td>
+      <td style="text-transform:capitalize">${p.modalidad}</td>
+      <td class="mono">${Math.round(p.tasa * 100)}%</td>
+      <td class="mono">${formatCOP(total)}</td>
+      <td class="mono" style="color:var(--green)">${formatCOP(res.totalPagado)}</td>
+      <td class="mono" style="color:${res.saldo > 0 ? 'var(--amber)' : 'var(--green)'}">${formatCOP(res.saldo)}</td>
+      <td><span class="badge ${badgeClass}">${badgeLabel}</span></td>
+      <td>
+        <button class="btn btn-sm" onclick="verCuotas('${p.id}')">Ver cuotas</button>
+        ${estado !== 'finalizado' ? `<button class="btn btn-sm btn-danger" onclick="eliminarPrestamo('${p.id}')">✕</button>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function eliminarPrestamo(id) {
+  if (!confirm('¿Eliminar este préstamo y sus cuotas?')) return;
+  dbSet('prestamos', dbGet('prestamos').filter(p => p.id !== id));
+  dbSet('cuotas', dbGet('cuotas').filter(c => c.prestamoId !== id));
+  renderPrestamos();
+  toast('Préstamo eliminado');
+}
+
+function verCuotas(prestamoId) {
+  const prestamo = dbGet('prestamos').find(p => p.id === prestamoId);
+  const cliente = dbGet('clientes').find(c => c.id === prestamo?.clienteId);
+  const cuotas = dbGet('cuotas').filter(c => c.prestamoId === prestamoId).sort((a,b) => a.num - b.num);
+  document.getElementById('modal-cuotas-title').textContent = `Plan de cuotas — ${cliente?.nombre || ''}`;
+  document.getElementById('modal-cuotas-content').innerHTML = `
+    <table class="plan-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;background:var(--surface2);border-bottom:1px solid var(--border)">Cuota</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;background:var(--surface2);border-bottom:1px solid var(--border)">Vence</th>
+        <th style="padding:8px 10px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;background:var(--surface2);border-bottom:1px solid var(--border)">Valor</th>
+        <th style="padding:8px 10px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;background:var(--surface2);border-bottom:1px solid var(--border)">Pagado</th>
+        <th style="padding:8px 10px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;background:var(--surface2);border-bottom:1px solid var(--border)">Saldo</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;background:var(--surface2);border-bottom:1px solid var(--border)">Estado</th>
+      </tr></thead>
+      <tbody>
+        ${cuotas.map(c => {
+          const saldo = Math.max(0, c.valor - (c.pagado || 0));
+          const mora = getDiasMora(c.fechaVence);
+          const estado = c.estado === 'pagado' ? 'pagado' : (mora > 0 ? 'mora' : 'pendiente');
+          const badgeMap = { pagado: 'badge-green', mora: 'badge-red', pendiente: 'badge-amber' };
+          const labelMap = { pagado: 'Pagado', mora: `Mora ${mora}d`, pendiente: 'Pendiente' };
+          return `<tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 10px;font-weight:500">${c.label}</td>
+            <td style="padding:8px 10px;font-size:12px">${formatDate(c.fechaVence)}</td>
+            <td style="padding:8px 10px;text-align:right;font-family:var(--mono)">${formatCOP(c.valor)}</td>
+            <td style="padding:8px 10px;text-align:right;font-family:var(--mono);color:var(--green)">${formatCOP(c.pagado || 0)}</td>
+            <td style="padding:8px 10px;text-align:right;font-family:var(--mono);color:${saldo>0?'var(--amber)':'var(--green)'}">${formatCOP(saldo)}</td>
+            <td style="padding:8px 10px"><span class="badge ${badgeMap[estado]}">${labelMap[estado]}</span></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+  document.getElementById('modal-cuotas').classList.add('open');
+}
+
+// ═══════════════════════════════
+//  CALCULADORA
+// ═══════════════════════════════
+
+function initCalculadora() {
+  populateClienteSelect();
+  const hoy = new Date().toISOString().split('T')[0];
+  document.getElementById('calc-fecha').value = hoy;
+  updateCalc();
+}
+
+function populateClienteSelect() {
+  const sel = document.getElementById('calc-cliente');
+  if (!sel) return;
+  const clientes = dbGet('clientes');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Seleccionar cliente...</option>' +
+    clientes.map(c => `<option value="${c.id}" ${c.id === current ? 'selected' : ''}>${c.nombre}</option>`).join('');
+}
+
+function updateCalc() {
+  const importe = parseFloat(document.getElementById('calc-importe')?.value) || 0;
+  const tasaPct = parseFloat(document.getElementById('calc-tasa')?.value) || 0;
+  const numCuotas = parseInt(document.getElementById('calc-cuotas')?.value) || 1;
+  const modalidad = document.getElementById('calc-modalidad')?.value || 'quincenal';
+  const fechaStr = document.getElementById('calc-fecha')?.value;
+
+  if (!importe || !numCuotas || !fechaStr) return;
+
+  const tasa = tasaPct / 100;
+  const total = calcularTotal(importe, tasa);
+  const cuota = calcularCuota(importe, tasa, numCuotas);
+  const interes = total - importe;
+
+  document.getElementById('res-cuota').textContent = formatCOP(cuota);
+  document.getElementById('res-total').textContent = formatCOP(total);
+  document.getElementById('res-interes').textContent = formatCOP(interes);
+
+  // Fecha último pago
+  const fechaInicio = new Date(fechaStr + 'T12:00:00');
+  const diasMod = diasPorModalidad(modalidad);
+  const ultimaFecha = new Date(fechaInicio);
+  ultimaFecha.setDate(ultimaFecha.getDate() + diasMod * numCuotas);
+  document.getElementById('res-ultimo').textContent = formatDate(ultimaFecha.toISOString().split('T')[0]);
+
+  // Generar tabla de plan de pagos
+  const plan = [];
+  let saldo = total;
+  for (let i = 0; i < numCuotas; i++) {
+    const fVence = new Date(fechaInicio);
+    fVence.setDate(fVence.getDate() + diasMod * (i + 1));
+    const esUltima = i === numCuotas - 1;
+    const val = esUltima ? Math.round(saldo * 100) / 100 : cuota;
+    saldo = Math.round((saldo - val) * 100) / 100;
+    plan.push({ num: i + 1, fecha: fVence.toISOString().split('T')[0], valor: val, saldo });
+  }
+
+  document.getElementById('plan-pagos-container').innerHTML = `
+    <table class="plan-table" style="width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;background:var(--surface2);border-bottom:1px solid var(--border)">#</th>
+        <th style="padding:8px 10px;text-align:left;font-size:10px;color:var(--text3);text-transform:uppercase;background:var(--surface2);border-bottom:1px solid var(--border)">Fecha de pago</th>
+        <th style="padding:8px 10px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;background:var(--surface2);border-bottom:1px solid var(--border)">Cuota</th>
+        <th style="padding:8px 10px;text-align:right;font-size:10px;color:var(--text3);text-transform:uppercase;background:var(--surface2);border-bottom:1px solid var(--border)">Saldo restante</th>
+      </tr></thead>
+      <tbody>
+        ${plan.map(r => `<tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:7px 10px;color:var(--text3);font-size:12px">Cuota ${r.num}</td>
+          <td style="padding:7px 10px;font-size:12px">${formatDate(r.fecha)}</td>
+          <td style="padding:7px 10px;text-align:right;font-family:var(--mono);font-weight:500">${formatCOP(r.valor)}</td>
+          <td style="padding:7px 10px;text-align:right;font-family:var(--mono);color:${r.saldo > 0 ? 'var(--amber)' : 'var(--green)'}">${formatCOP(Math.max(0, r.saldo))}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function guardarPrestamo() {
+  const clienteId = document.getElementById('calc-cliente').value;
+  const importe = parseFloat(document.getElementById('calc-importe').value);
+  const tasaPct = parseFloat(document.getElementById('calc-tasa').value) || 0;
+  const numCuotas = parseInt(document.getElementById('calc-cuotas').value);
+  const modalidad = document.getElementById('calc-modalidad').value;
+  const fechaStr = document.getElementById('calc-fecha').value;
+
+  if (!clienteId) { toast('Selecciona un cliente'); return; }
+  if (!importe || importe <= 0) { toast('Ingresa un importe válido'); return; }
+  if (!numCuotas || numCuotas < 1) { toast('Ingresa número de cuotas válido'); return; }
+  if (!fechaStr) { toast('Selecciona una fecha de inicio'); return; }
+
+  const tasa = tasaPct / 100;
+  const prestamos = dbGet('prestamos');
+  const nextId = 'P_' + (Date.now().toString().slice(-6));
+
+  const nuevoPrestamo = { id: nextId, clienteId, fecha: fechaStr, importe, modalidad, tasa, numCuotas };
+  prestamos.push(nuevoPrestamo);
+  dbSet('prestamos', prestamos);
+
+  const cuotas = dbGet('cuotas');
+  cuotas.push(...generarCuotas(nuevoPrestamo));
+  dbSet('cuotas', cuotas);
+
+  toast('Préstamo creado exitosamente');
+  showPage('prestamos');
+}
+
+// ═══════════════════════════════
+//  COBROS
+// ═══════════════════════════════
+
+function setCobrosFilter(btn, val) {
+  cobrosFilter = val;
+  document.querySelectorAll('#page-cobros .filter-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  renderCobros(document.getElementById('cobros-search')?.value || '');
+}
+
+function renderCobros(q = '') {
+  const hoy = new Date().toISOString().split('T')[0];
+  let cuotas = dbGet('cuotas');
+  const clientes = dbGet('clientes');
+
+  if (q) {
+    const clienteIds = clientes.filter(c => c.nombre.toLowerCase().includes(q.toLowerCase())).map(c => c.id);
+    cuotas = cuotas.filter(c => clienteIds.includes(c.clienteId));
+  }
+
+  if (cobrosFilter === 'pendiente') cuotas = cuotas.filter(c => c.estado !== 'pagado' && c.fechaVence >= hoy);
+  else if (cobrosFilter === 'mora') cuotas = cuotas.filter(c => c.estado !== 'pagado' && c.fechaVence < hoy);
+  else if (cobrosFilter === 'pagado') cuotas = cuotas.filter(c => c.estado === 'pagado');
+
+  cuotas = cuotas.slice().sort((a,b) => {
+    if (a.estado === 'pagado' && b.estado !== 'pagado') return 1;
+    if (a.estado !== 'pagado' && b.estado === 'pagado') return -1;
+    return a.fechaVence.localeCompare(b.fechaVence);
+  });
+
+  const tbody = document.getElementById('cobros-tbody');
+  if (!cuotas.length) {
+    tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><p>No hay cuotas que mostrar</p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = cuotas.map(c => {
+    const cliente = clientes.find(cl => cl.id === c.clienteId);
+    const mora = getDiasMora(c.fechaVence);
+    const estadoReal = c.estado === 'pagado' ? 'pagado' : (mora > 0 ? 'mora' : 'pendiente');
+    const saldo = Math.max(0, c.valor - (c.pagado || 0));
+    const badgeMap = { pagado: 'badge-green', mora: 'badge-red', pendiente: 'badge-amber' };
+    const labelMap = { pagado: 'Pagado', mora: 'En mora', pendiente: 'Pendiente' };
+    return `<tr>
+      <td style="font-size:12px;color:var(--text3)">${c.label}</td>
+      <td>${cliente?.nombre || '?'}</td>
+      <td style="font-size:12px;color:var(--text3)">#${c.prestamoId.replace('P_','')}</td>
+      <td style="font-size:12px">${formatDate(c.fechaVence)}</td>
+      <td class="mono">${formatCOP(c.valor)}</td>
+      <td class="mono" style="color:var(--green)">${formatCOP(c.pagado || 0)}</td>
+      <td class="mono" style="color:${saldo>0?'var(--amber)':'var(--green)'}">${formatCOP(saldo)}</td>
+      <td><span class="badge ${badgeMap[estadoReal]}">${labelMap[estadoReal]}</span></td>
+      <td style="font-size:12px;color:${mora>0?'var(--red)':'var(--text3)'}">${mora > 0 ? mora + ' días' : '—'}</td>
+      <td>
+        ${c.estado !== 'pagado' ? `<button class="btn btn-sm btn-success" onclick="abrirModalPago('${c.id}')">Cobrar</button>` : `<span style="font-size:12px;color:var(--text3)">${formatDate(c.fechaPago || '')}</span>`}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function abrirModalPago(cuotaId) {
+  const cuota = dbGet('cuotas').find(c => c.id === cuotaId);
+  if (!cuota) return;
+  const cliente = dbGet('clientes').find(c => c.id === cuota.clienteId);
+  const saldo = Math.max(0, cuota.valor - (cuota.pagado || 0));
+
+  document.getElementById('pago-cuota-id').value = cuotaId;
+  document.getElementById('pago-monto').value = saldo;
+  document.getElementById('pago-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('pago-obs').value = '';
+  document.getElementById('pago-info').innerHTML = `
+    <div style="font-weight:500;margin-bottom:4px">${cliente?.nombre || '?'} — ${cuota.label}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+      <div><span style="color:var(--text3);font-size:11px">Valor cuota</span><br><span class="mono" style="font-weight:500">${formatCOP(cuota.valor)}</span></div>
+      <div><span style="color:var(--text3);font-size:11px">Saldo pendiente</span><br><span class="mono" style="font-weight:500;color:var(--amber)">${formatCOP(saldo)}</span></div>
+      <div><span style="color:var(--text3);font-size:11px">Vence</span><br><span style="font-size:13px">${formatDate(cuota.fechaVence)}</span></div>
+      <div><span style="color:var(--text3);font-size:11px">Ya abonado</span><br><span class="mono" style="color:var(--green)">${formatCOP(cuota.pagado || 0)}</span></div>
+    </div>`;
+  document.getElementById('modal-pago').classList.add('open');
+}
+
+function confirmarPago() {
+  const cuotaId = document.getElementById('pago-cuota-id').value;
+  const monto = parseFloat(document.getElementById('pago-monto').value);
+  const fecha = document.getElementById('pago-fecha').value;
+  const obs = document.getElementById('pago-obs').value;
+
+  if (!monto || monto <= 0) { toast('Ingresa un monto válido'); return; }
+  if (!fecha) { toast('Selecciona la fecha de pago'); return; }
+
+  const cuotas = dbGet('cuotas');
+  const idx = cuotas.findIndex(c => c.id === cuotaId);
+  if (idx < 0) { toast('Cuota no encontrada'); return; }
+
+  const cuota = cuotas[idx];
+  const saldo = Math.max(0, cuota.valor - (cuota.pagado || 0));
+  const abono = Math.min(monto, saldo);
+
+  cuotas[idx].pagado = (cuota.pagado || 0) + abono;
+  cuotas[idx].fechaPago = fecha;
+  cuotas[idx].obs = obs;
+  if (cuotas[idx].pagado >= cuota.valor) cuotas[idx].estado = 'pagado';
+
+  dbSet('cuotas', cuotas);
+  cerrarModal('modal-pago');
+  renderCobros(document.getElementById('cobros-search')?.value || '');
+  toast(abono >= saldo ? 'Cuota pagada completa ✓' : `Pago parcial de ${formatCOP(abono)} registrado`);
+}
+
+// ═══════════════════════════════
+//  BUSCADOR
+// ═══════════════════════════════
+
+function buscarCliente(q) {
+  const div = document.getElementById('buscar-resultado');
+  if (!q || q.length < 2) {
+    const clientes = dbGet('clientes');
+    div.innerHTML = `<div class="card"><div style="font-size:13px;color:var(--text3)">Escribe al menos 2 caracteres para buscar. Clientes disponibles: ${clientes.map(c => `<span style="color:var(--accent);cursor:pointer" onclick="document.getElementById('buscar-input').value='${c.nombre}';buscarCliente('${c.nombre}')">${c.nombre}</span>`).join(', ')}</div></div>`;
+    return;
+  }
+
+  const clientes = dbGet('clientes').filter(c =>
+    c.nombre.toLowerCase().includes(q.toLowerCase()) || c.codigo.toLowerCase().includes(q.toLowerCase())
+  );
+
+  if (!clientes.length) { div.innerHTML = '<div class="card"><div class="empty-state"><p>No se encontraron clientes</p></div></div>'; return; }
+
+  const prestamos = dbGet('prestamos');
+  const cuotas = dbGet('cuotas');
+
+  div.innerHTML = clientes.map(cliente => {
+    const prest = prestamos.filter(p => p.clienteId === cliente.id);
+    const cuotasCliente = cuotas.filter(c => c.clienteId === cliente.id);
+    const totalPrestado = prest.reduce((s, p) => s + p.importe, 0);
+    const totalPagado = cuotasCliente.reduce((s, c) => s + (c.pagado || 0), 0);
+    const saldoTotal = cuotasCliente.reduce((s, c) => s + Math.max(0, c.valor - (c.pagado || 0)), 0);
+
+    const pendientes = cuotasCliente.filter(c => c.estado !== 'pagado').sort((a,b) => a.fechaVence.localeCompare(b.fechaVence));
+
+    return `<div class="card" style="margin-bottom:1rem">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid var(--border)">
+        <div class="avatar" style="width:44px;height:44px;font-size:16px">${iniciales(cliente.nombre)}</div>
+        <div style="flex:1">
+          <div style="font-size:16px;font-weight:600">${cliente.nombre}</div>
+          <div style="font-size:12px;color:var(--text3)">${cliente.codigo} · ${cliente.telefono || 'sin teléfono'}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;text-align:right">
+          <div><div class="stat-label">Prestado</div><div class="mono" style="font-size:14px;font-weight:600;color:var(--blue)">${formatCOP(totalPrestado)}</div></div>
+          <div><div class="stat-label">Pagado</div><div class="mono" style="font-size:14px;font-weight:600;color:var(--green)">${formatCOP(totalPagado)}</div></div>
+          <div><div class="stat-label">Saldo</div><div class="mono" style="font-size:14px;font-weight:600;color:var(--amber)">${formatCOP(saldoTotal)}</div></div>
+        </div>
+      </div>
+
+      ${pendientes.length ? `
+        <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Cuotas pendientes (${pendientes.length})</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr>
+            <th style="padding:6px 8px;text-align:left;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;color:var(--text3);text-transform:uppercase">Cuota</th>
+            <th style="padding:6px 8px;text-align:left;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;color:var(--text3);text-transform:uppercase">Préstamo</th>
+            <th style="padding:6px 8px;text-align:left;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;color:var(--text3);text-transform:uppercase">Vence</th>
+            <th style="padding:6px 8px;text-align:right;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;color:var(--text3);text-transform:uppercase">Valor</th>
+            <th style="padding:6px 8px;text-align:right;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;color:var(--text3);text-transform:uppercase">Saldo</th>
+            <th style="padding:6px 8px;text-align:left;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;color:var(--text3);text-transform:uppercase">Estado</th>
+            <th style="padding:6px 8px;background:var(--surface2);border-bottom:1px solid var(--border)"></th>
+          </tr></thead>
+          <tbody>
+            ${pendientes.map(c => {
+              const mora = getDiasMora(c.fechaVence);
+              const saldo = Math.max(0, c.valor - (c.pagado || 0));
+              return `<tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:6px 8px;font-weight:500">${c.label}</td>
+                <td style="padding:6px 8px;color:var(--text3)">#${c.prestamoId.replace('P_','')}</td>
+                <td style="padding:6px 8px">${formatDate(c.fechaVence)}</td>
+                <td style="padding:6px 8px;text-align:right;font-family:var(--mono)">${formatCOP(c.valor)}</td>
+                <td style="padding:6px 8px;text-align:right;font-family:var(--mono);color:var(--amber)">${formatCOP(saldo)}</td>
+                <td style="padding:6px 8px"><span class="badge ${mora > 0 ? 'badge-red' : 'badge-amber'}">${mora > 0 ? 'Mora '+mora+'d' : 'Pendiente'}</span></td>
+                <td style="padding:6px 8px"><button class="btn btn-sm btn-success" onclick="abrirModalPago('${c.id}');showPage('cobros')">Cobrar</button></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      ` : `<div style="font-size:13px;color:var(--green);font-weight:500">✓ Sin cuotas pendientes</div>`}
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════
+//  HELPERS
+// ═══════════════════════════════
+
+function formatCOP(n) {
+  if (n === null || n === undefined || isNaN(n)) return '$0';
+  return '$' + Math.round(n).toLocaleString('es-CO');
+}
+
+function formatDate(str) {
+  if (!str) return '—';
+  try {
+    const d = new Date(str + 'T12:00:00');
+    return d.toLocaleDateString('es-CO', { day:'2-digit', month:'short', year:'2-digit' });
+  } catch { return str; }
+}
+
+function iniciales(nombre) {
+  if (!nombre) return '?';
+  return nombre.split(' ').slice(0,2).map(p => p[0]).join('').toUpperCase();
+}
+
+function cerrarModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+function toast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// Cerrar modal al hacer clic fuera
+document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+  backdrop.addEventListener('click', (e) => {
+    if (e.target === backdrop) backdrop.classList.remove('open');
+  });
+});
+
+// ═══════════════════════════════
+//  INIT
+// ═══════════════════════════════
+
+initDemoData();
+showPage('dashboard');
+</script>
+</body>
+</html>
