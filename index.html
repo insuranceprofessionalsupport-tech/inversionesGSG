@@ -1523,11 +1523,14 @@ try {
     toast('Préstamo creado exitosamente');
     showPage('prestamos');
   } catch (e) {
-    toast('Error al crear préstamo: ' + e.message);
-  }
-}
+
+    console.error(e);
+
   } finally {
-  btn.disabled = false;
+
+    btn.disabled = false;
+
+  }
 }
 
 // ═══════════════════════════════
