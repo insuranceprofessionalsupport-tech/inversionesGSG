@@ -95,6 +95,30 @@
   .nav-tab:hover { color: var(--text); background: var(--bg); }
   .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
+  /* ─── LOADING OVERLAY ─── */
+  #loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 9998;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    transition: opacity 0.3s;
+  }
+  #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading-msg { font-size: 14px; color: var(--text2); }
+
   /* ─── LAYOUT ─── */
   .page { display: none; padding: 1.5rem; max-width: 1100px; margin: 0 auto; width: 100%; }
   .page.active { display: block; }
@@ -468,31 +492,14 @@
     .nav-brand span { display: none; }
   }
 </style>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-  const _supabase = supabase.createClient(
-    'https://cuigctbwhfjeypfvrbvi.supabase.co', 
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1aWdjdGJ3aGZqZXlwZnZyYnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0Mjg4OTYsImV4cCI6MjA5MzAwNDg5Nn0.I4P6LufK2BhH6oWao2cW4wjDR1MNs5MVwwIFT0OBmdQ'
-  );
-</script>
 </head>
 <body>
-  <div id="login-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:sans-serif;">
-  <h2>Acceso Privado</h2>
-  <input type="password" id="pass-input" placeholder="Contraseña" style="padding:10px; margin:10px; border:1px solid #ccc; border-radius:5px;">
-  <button onclick="verificarAcceso()" style="padding:10px 20px; background:#c8562a; color:white; border:none; border-radius:5px; cursor:pointer;">Entrar</button>
-</div>
 
-<script>
-  function verificarAcceso() {
-    const pass = document.getElementById('pass-input').value;
-    if (pass === "1234") { // <--- AQUÍ CAMBIA "1234" POR TU CLAVE REAL
-      document.getElementById('login-overlay').style.display = 'none';
-    } else {
-      alert("Clave incorrecta");
-    }
-  }
-</script>
+<!-- LOADING OVERLAY -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div id="loading-msg">Conectando con Supabase…</div>
+</div>
 
 <!-- NAV -->
 <nav>
@@ -824,28 +831,130 @@
 ═══════════════════════════════════════════ -->
 <script>
 // ═══════════════════════════════
-//  BASE DE DATOS LOCAL (localStorage)
+//  CONFIGURACIÓN SUPABASE
 // ═══════════════════════════════
 
-const DB_KEYS = { clientes: 'ca_clientes', prestamos: 'ca_prestamos', cuotas: 'ca_cuotas' };
+const SUPA_URL  = 'https://cuigctbwhfjeypfvrbvi.supabase.co/rest/v1';
+const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1aWdjdGJ3aGZqZXlwZnZyYnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0Mjg4OTYsImV4cCI6MjA5MzAwNDg5Nn0.I4P6LufK2BhH6oWao2cW4wjDR1MNs5MVwwIFT0OBmdQ';
 
-function dbGet(key) {
-  try { return JSON.parse(localStorage.getItem(DB_KEYS[key]) || '[]'); } catch { return []; }
+const HEADERS = {
+  'Content-Type': 'application/json',
+  'apikey': SUPA_KEY,
+  'Authorization': `Bearer ${SUPA_KEY}`,
+  'Prefer': 'return=representation'
+};
+
+// ─── Tablas ───
+const TABLA = {
+  clientes: 'ca_clientes',
+  prestamos: 'ca_prestamos',
+  cuotas: 'ca_cuotas'
+};
+
+// ═══════════════════════════════
+//  CACHE EN MEMORIA
+// ═══════════════════════════════
+
+const DB = { clientes: [], prestamos: [], cuotas: [] };
+
+// Lectura desde cache (síncrona — igual que dbGet original)
+function dbGet(key) { return DB[key] || []; }
+
+// ═══════════════════════════════
+//  API SUPABASE — OPERACIONES CRUD
+// ═══════════════════════════════
+
+async function supaFetch(tabla, opts = {}) {
+  const { method = 'GET', filters = '', body = null } = opts;
+  const url = `${SUPA_URL}/${tabla}${filters ? '?' + filters : ''}`;
+  const res = await fetch(url, {
+    method,
+    headers: HEADERS,
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Supabase [${method} ${tabla}]: ${res.status} — ${err}`);
+  }
+  // DELETE/PATCH pueden devolver 204 sin body
+  const text = await res.text();
+  return text ? JSON.parse(text) : [];
 }
-function dbSet(key, data) {
-  localStorage.setItem(DB_KEYS[key], JSON.stringify(data));
+
+// Cargar todas las filas de una tabla al cache
+async function cargarTabla(key) {
+  const rows = await supaFetch(TABLA[key]);
+  DB[key] = rows;
 }
-function genId(prefix) {
-  return prefix + '_' + Date.now().toString(36).toUpperCase();
+
+// INSERT una fila; devuelve la fila creada
+async function supaInsert(key, row) {
+  const rows = await supaFetch(TABLA[key], { method: 'POST', body: row });
+  const created = Array.isArray(rows) ? rows[0] : rows;
+  DB[key].push(created);
+  return created;
+}
+
+// INSERT múltiples filas de una vez
+async function supaInsertMany(key, rows) {
+  if (!rows.length) return [];
+  const created = await supaFetch(TABLA[key], { method: 'POST', body: rows });
+  DB[key].push(...(Array.isArray(created) ? created : []));
+  return created;
+}
+
+// UPDATE por id (columna 'id')
+async function supaUpdate(key, id, patch) {
+  const updated = await supaFetch(TABLA[key], {
+    method: 'PATCH',
+    filters: `id=eq.${encodeURIComponent(id)}`,
+    body: patch
+  });
+  const idx = DB[key].findIndex(r => r.id === id);
+  if (idx >= 0) DB[key][idx] = { ...DB[key][idx], ...patch };
+  return updated;
+}
+
+// DELETE por id
+async function supaDelete(key, id) {
+  await supaFetch(TABLA[key], {
+    method: 'DELETE',
+    filters: `id=eq.${encodeURIComponent(id)}`
+  });
+  DB[key] = DB[key].filter(r => r.id !== id);
+}
+
+// DELETE por campo arbitrario
+async function supaDeleteWhere(key, campo, valor) {
+  await supaFetch(TABLA[key], {
+    method: 'DELETE',
+    filters: `${campo}=eq.${encodeURIComponent(valor)}`
+  });
+  DB[key] = DB[key].filter(r => r[campo] !== valor);
 }
 
 // ═══════════════════════════════
-//  INICIALIZACIÓN CON DATOS DEL EXCEL
+//  INICIALIZACIÓN — carga desde Supabase
 // ═══════════════════════════════
 
-function initDemoData() {
-  if (dbGet('clientes').length > 0) return;
+async function initDemoData() {
+  setLoading('Cargando clientes…');
+  await cargarTabla('clientes');
 
+  setLoading('Cargando préstamos…');
+  await cargarTabla('prestamos');
+
+  setLoading('Cargando cuotas…');
+  await cargarTabla('cuotas');
+
+  // Si la base está vacía, sembrar los datos de demo
+  if (DB.clientes.length === 0) {
+    setLoading('Sembrando datos iniciales…');
+    await sembrarDatosDemo();
+  }
+}
+
+async function sembrarDatosDemo() {
   const clientes = [
     { id: 'Cli_001', codigo: 'Cli_001', nombre: 'Claudia Castellar', cedula: '', telefono: '3012484107', email: '', domicilio: '' },
     { id: 'Cli_002', codigo: 'Cli_002', nombre: 'Kaler Florez', cedula: '', telefono: '3015538716', email: '', domicilio: '' },
@@ -861,9 +970,11 @@ function initDemoData() {
     { id: 'cli_013', codigo: 'cli_013', nombre: 'Luis Serna', cedula: '', telefono: '3507121800', email: '', domicilio: '' },
     { id: 'cli_014', codigo: 'cli_014', nombre: 'Benjamin', cedula: '', telefono: '3019768748', email: '', domicilio: '' },
   ];
-  dbSet('clientes', clientes);
 
-  // Excel serial date base: Jan 1 1900 = 1 (with Excel's leap year bug offset)
+  // INSERT clientes en lote
+  const createdClientes = await supaFetch(TABLA.clientes, { method: 'POST', body: clientes });
+  DB.clientes = Array.isArray(createdClientes) ? createdClientes : clientes;
+
   function excelToDate(serial) {
     const d = new Date((serial - 25569) * 86400 * 1000);
     return d.toISOString().split('T')[0];
@@ -881,17 +992,14 @@ function initDemoData() {
     { id: 'P_20', clienteId: 'cli_014', fecha: excelToDate(46112), importe: 300000, modalidad: 'quincenal', tasa: 0.2, numCuotas: 2 },
     { id: 'P_11', clienteId: 'cli_010', fecha: excelToDate(46089), importe: 300000, modalidad: 'quincenal', tasa: 0.2, numCuotas: 2 },
   ];
-  dbSet('prestamos', prestamos);
 
-  // Generar cuotas para cada préstamo
+  const createdPrestamos = await supaFetch(TABLA.prestamos, { method: 'POST', body: prestamos });
+  DB.prestamos = Array.isArray(createdPrestamos) ? createdPrestamos : prestamos;
+
+  // Generar cuotas
   const todasCuotas = [];
-  prestamos.forEach(p => {
-    const cuotas = generarCuotas(p);
-    todasCuotas.push(...cuotas);
-  });
+  prestamos.forEach(p => { todasCuotas.push(...generarCuotas(p)); });
 
-  // Marcar cuotas pagadas según historial del Excel
-  // Pagadas conocidas del Excel
   const pagadas = {
     'P_22-1': excelToDate(46127), 'P_21-1': excelToDate(46127),
     'P_20-1': excelToDate(46127), 'P_28-0': excelToDate(46139),
@@ -906,11 +1014,12 @@ function initDemoData() {
     }
   });
 
-  dbSet('cuotas', todasCuotas);
+  const createdCuotas = await supaFetch(TABLA.cuotas, { method: 'POST', body: todasCuotas });
+  DB.cuotas = Array.isArray(createdCuotas) ? createdCuotas : todasCuotas;
 }
 
 // ═══════════════════════════════
-//  LÓGICA DE CÁLCULO (replicada del Excel)
+//  LÓGICA DE CÁLCULO
 // ═══════════════════════════════
 
 function diasPorModalidad(modalidad) {
@@ -1064,7 +1173,6 @@ function renderDashboard() {
     </div>
   `;
 
-  // Préstamos activos
   const activos = prestamos.filter(p => getEstadoPrestamoCalc(p.id) === 'activo' || getEstadoPrestamoCalc(p.id) === 'mora');
   const divActivos = document.getElementById('dash-activos');
   if (!activos.length) { divActivos.innerHTML = '<div class="empty-state"><p>Sin préstamos activos</p></div>'; }
@@ -1088,7 +1196,6 @@ function renderDashboard() {
     }).join('');
   }
 
-  // Cuotas próximas
   const en7dias = new Date(); en7dias.setDate(en7dias.getDate() + 7);
   const proximas = cuotas.filter(c => c.estado !== 'pagado' && c.fechaVence >= hoy && c.fechaVence <= en7dias.toISOString().split('T')[0]);
   const divProximas = document.getElementById('dash-proximas');
@@ -1168,13 +1275,12 @@ function abrirModalCliente(id = null) {
 
 function editarCliente(id) { abrirModalCliente(id); }
 
-function guardarCliente() {
+async function guardarCliente() {
   const nombre = document.getElementById('cliente-nombre').value.trim();
   if (!nombre) { toast('El nombre es obligatorio'); return; }
   const editId = document.getElementById('cliente-edit-id').value;
-  const clientes = dbGet('clientes');
-  const nuevo = {
-    id: editId || genId('CLI'),
+
+  const datos = {
     codigo: document.getElementById('cliente-codigo').value.trim() || genId('C'),
     nombre,
     cedula: document.getElementById('cliente-cedula').value.trim(),
@@ -1182,27 +1288,39 @@ function guardarCliente() {
     email: document.getElementById('cliente-email').value.trim(),
     domicilio: document.getElementById('cliente-domicilio').value.trim(),
   };
-  if (editId) {
-    const idx = clientes.findIndex(c => c.id === editId);
-    if (idx >= 0) clientes[idx] = nuevo;
-  } else {
-    clientes.push(nuevo);
+
+  try {
+    if (editId) {
+      await supaUpdate('clientes', editId, datos);
+      toast('Cliente actualizado');
+    } else {
+      const nuevoId = genId('CLI');
+      await supaInsert('clientes', { id: nuevoId, ...datos });
+      toast('Cliente creado');
+    }
+    cerrarModal('modal-cliente');
+    renderClientes(document.getElementById('cliente-search')?.value || '');
+    populateClienteSelect();
+  } catch (e) {
+    toast('Error al guardar cliente: ' + e.message);
   }
-  dbSet('clientes', clientes);
-  cerrarModal('modal-cliente');
-  renderClientes(document.getElementById('cliente-search')?.value || '');
-  populateClienteSelect();
-  toast(editId ? 'Cliente actualizado' : 'Cliente creado');
 }
 
-function eliminarCliente(id) {
+async function eliminarCliente(id) {
   if (!confirm('¿Eliminar este cliente? Se eliminarán también sus préstamos y cuotas.')) return;
-  dbSet('clientes', dbGet('clientes').filter(c => c.id !== id));
-  const pids = dbGet('prestamos').filter(p => p.clienteId === id).map(p => p.id);
-  dbSet('prestamos', dbGet('prestamos').filter(p => p.clienteId !== id));
-  dbSet('cuotas', dbGet('cuotas').filter(c => !pids.includes(c.prestamoId)));
-  renderClientes();
-  toast('Cliente eliminado');
+  try {
+    // Obtener ids de préstamos del cliente para borrar sus cuotas
+    const pids = dbGet('prestamos').filter(p => p.clienteId === id).map(p => p.id);
+    for (const pid of pids) {
+      await supaDeleteWhere('cuotas', 'prestamoId', pid);
+    }
+    await supaDeleteWhere('prestamos', 'clienteId', id);
+    await supaDelete('clientes', id);
+    renderClientes();
+    toast('Cliente eliminado');
+  } catch (e) {
+    toast('Error al eliminar cliente: ' + e.message);
+  }
 }
 
 // ═══════════════════════════════
@@ -1254,12 +1372,16 @@ function renderPrestamos() {
   }).join('');
 }
 
-function eliminarPrestamo(id) {
+async function eliminarPrestamo(id) {
   if (!confirm('¿Eliminar este préstamo y sus cuotas?')) return;
-  dbSet('prestamos', dbGet('prestamos').filter(p => p.id !== id));
-  dbSet('cuotas', dbGet('cuotas').filter(c => c.prestamoId !== id));
-  renderPrestamos();
-  toast('Préstamo eliminado');
+  try {
+    await supaDeleteWhere('cuotas', 'prestamoId', id);
+    await supaDelete('prestamos', id);
+    renderPrestamos();
+    toast('Préstamo eliminado');
+  } catch (e) {
+    toast('Error al eliminar: ' + e.message);
+  }
 }
 
 function verCuotas(prestamoId) {
@@ -1336,14 +1458,12 @@ function updateCalc() {
   document.getElementById('res-total').textContent = formatCOP(total);
   document.getElementById('res-interes').textContent = formatCOP(interes);
 
-  // Fecha último pago
   const fechaInicio = new Date(fechaStr + 'T12:00:00');
   const diasMod = diasPorModalidad(modalidad);
   const ultimaFecha = new Date(fechaInicio);
   ultimaFecha.setDate(ultimaFecha.getDate() + diasMod * numCuotas);
   document.getElementById('res-ultimo').textContent = formatDate(ultimaFecha.toISOString().split('T')[0]);
 
-  // Generar tabla de plan de pagos
   const plan = [];
   let saldo = total;
   for (let i = 0; i < numCuotas; i++) {
@@ -1374,7 +1494,7 @@ function updateCalc() {
     </table>`;
 }
 
-function guardarPrestamo() {
+async function guardarPrestamo() {
   const clienteId = document.getElementById('calc-cliente').value;
   const importe = parseFloat(document.getElementById('calc-importe').value);
   const tasaPct = parseFloat(document.getElementById('calc-tasa').value) || 0;
@@ -1388,19 +1508,18 @@ function guardarPrestamo() {
   if (!fechaStr) { toast('Selecciona una fecha de inicio'); return; }
 
   const tasa = tasaPct / 100;
-  const prestamos = dbGet('prestamos');
   const nextId = 'P_' + (Date.now().toString().slice(-6));
-
   const nuevoPrestamo = { id: nextId, clienteId, fecha: fechaStr, importe, modalidad, tasa, numCuotas };
-  prestamos.push(nuevoPrestamo);
-  dbSet('prestamos', prestamos);
 
-  const cuotas = dbGet('cuotas');
-  cuotas.push(...generarCuotas(nuevoPrestamo));
-  dbSet('cuotas', cuotas);
-
-  toast('Préstamo creado exitosamente');
-  showPage('prestamos');
+  try {
+    await supaInsert('prestamos', nuevoPrestamo);
+    const cuotas = generarCuotas(nuevoPrestamo);
+    await supaInsertMany('cuotas', cuotas);
+    toast('Préstamo creado exitosamente');
+    showPage('prestamos');
+  } catch (e) {
+    toast('Error al crear préstamo: ' + e.message);
+  }
 }
 
 // ═══════════════════════════════
@@ -1485,7 +1604,7 @@ function abrirModalPago(cuotaId) {
   document.getElementById('modal-pago').classList.add('open');
 }
 
-function confirmarPago() {
+async function confirmarPago() {
   const cuotaId = document.getElementById('pago-cuota-id').value;
   const monto = parseFloat(document.getElementById('pago-monto').value);
   const fecha = document.getElementById('pago-fecha').value;
@@ -1494,23 +1613,24 @@ function confirmarPago() {
   if (!monto || monto <= 0) { toast('Ingresa un monto válido'); return; }
   if (!fecha) { toast('Selecciona la fecha de pago'); return; }
 
-  const cuotas = dbGet('cuotas');
-  const idx = cuotas.findIndex(c => c.id === cuotaId);
-  if (idx < 0) { toast('Cuota no encontrada'); return; }
+  const cuota = dbGet('cuotas').find(c => c.id === cuotaId);
+  if (!cuota) { toast('Cuota no encontrada'); return; }
 
-  const cuota = cuotas[idx];
   const saldo = Math.max(0, cuota.valor - (cuota.pagado || 0));
   const abono = Math.min(monto, saldo);
+  const nuevoPagado = (cuota.pagado || 0) + abono;
+  const nuevoEstado = nuevoPagado >= cuota.valor ? 'pagado' : 'pendiente';
 
-  cuotas[idx].pagado = (cuota.pagado || 0) + abono;
-  cuotas[idx].fechaPago = fecha;
-  cuotas[idx].obs = obs;
-  if (cuotas[idx].pagado >= cuota.valor) cuotas[idx].estado = 'pagado';
+  const patch = { pagado: nuevoPagado, fechaPago: fecha, obs, estado: nuevoEstado };
 
-  dbSet('cuotas', cuotas);
-  cerrarModal('modal-pago');
-  renderCobros(document.getElementById('cobros-search')?.value || '');
-  toast(abono >= saldo ? 'Cuota pagada completa ✓' : `Pago parcial de ${formatCOP(abono)} registrado`);
+  try {
+    await supaUpdate('cuotas', cuotaId, patch);
+    cerrarModal('modal-pago');
+    renderCobros(document.getElementById('cobros-search')?.value || '');
+    toast(abono >= saldo ? 'Cuota pagada completa ✓' : `Pago parcial de ${formatCOP(abono)} registrado`);
+  } catch (e) {
+    toast('Error al registrar pago: ' + e.message);
+  }
 }
 
 // ═══════════════════════════════
@@ -1624,6 +1744,21 @@ function toast(msg) {
   setTimeout(() => el.remove(), 3000);
 }
 
+function genId(prefix) {
+  return prefix + '_' + Date.now().toString(36).toUpperCase();
+}
+
+function setLoading(msg) {
+  const el = document.getElementById('loading-msg');
+  if (el) el.textContent = msg;
+}
+
+function hideLoading() {
+  const el = document.getElementById('loading-overlay');
+  if (el) el.classList.add('hidden');
+  setTimeout(() => { if (el) el.style.display = 'none'; }, 350);
+}
+
 // Cerrar modal al hacer clic fuera
 document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
   backdrop.addEventListener('click', (e) => {
@@ -1635,8 +1770,18 @@ document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
 //  INIT
 // ═══════════════════════════════
 
-initDemoData();
-showPage('dashboard');
+(async () => {
+  try {
+    await initDemoData();
+    hideLoading();
+    showPage('dashboard');
+  } catch (err) {
+    console.error('Error al inicializar:', err);
+    setLoading('⚠ Error de conexión. Revisa la consola.');
+    // Aun así mostrar la app con cache vacío
+    setTimeout(() => { hideLoading(); showPage('dashboard'); }, 2500);
+  }
+})();
 </script>
 </body>
 </html>
