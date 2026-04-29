@@ -839,7 +839,10 @@
 
 const SUPA_URL  = 'https://cuigctbwhfjeypfvrbvi.supabase.co/rest/v1';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1aWdjdGJ3aGZqZXlwZnZyYnZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0Mjg4OTYsImV4cCI6MjA5MzAwNDg5Nn0.I4P6LufK2BhH6oWao2cW4wjDR1MNs5MVwwIFT0OBmdQ';
-
+const supabase = window.supabase.createClient( 'https://cuigctbwhfjeypfvrbvi.supabase.co',
+                                              SUPA_KEY 
+                                            );
+  
 const HEADERS = {
   'Content-Type': 'application/json',
   'apikey': SUPA_KEY,
@@ -1850,5 +1853,6 @@ document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
   }
 })();
 </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </body>
 </html>
