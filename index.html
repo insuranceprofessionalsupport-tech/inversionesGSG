@@ -644,13 +644,13 @@ tbody tr.tr-mora:hover td{background:rgba(155,28,28,.08)}
       <div class="card">
         <div class="card-title" style="margin-bottom:1rem">Parámetros del crédito</div>
         <div class="form-group"><label>Cliente</label><select id="calc-cliente" onchange="updateCalc()"><option value="">Seleccionar cliente…</option></select></div>
-        <div class="form-group"><label>Importe ($)</label><input type="number" id="calc-importe" value="500000" min="1" oninput="updateCalc()"></div>
+        <div class="form-group"><label>Importe ($)</label><input type="number" id="calc-importe" value="" min="1" placeholder="0" oninput="updateCalc()"></div>
         <div class="form-row">
           <div class="form-group"><label>Modalidad</label><select id="calc-modalidad" onchange="updateCalc()"><option value="diario">Diario</option><option value="semanal">Semanal</option><option value="quincenal" selected>Quincenal</option><option value="mensual">Mensual</option></select></div>
-          <div class="form-group"><label>Nº cuotas</label><input type="number" id="calc-cuotas" value="4" min="1" max="60" oninput="updateCalc()"></div>
+          <div class="form-group"><label>Nº cuotas</label><input type="number" id="calc-cuotas" value="" min="1" max="60" placeholder="0" oninput="updateCalc()"></div>
         </div>
         <div class="form-row">
-          <div class="form-group"><label>Tasa (%)</label><input type="number" id="calc-tasa" value="20" min="0" max="200" step="0.1" oninput="updateCalc()"></div>
+          <div class="form-group"><label>Tasa (%)</label><input type="number" id="calc-tasa" value="" min="0" max="200" step="0.1" placeholder="0.0" oninput="updateCalc()"></div>
           <div class="form-group"><label>Fecha inicio</label><input type="date" id="calc-fecha" oninput="updateCalc()"></div>
         </div>
         <div style="background:var(--accent-l);border-radius:var(--r);padding:1rem;margin-top:.5rem">
@@ -1642,10 +1642,26 @@ function verCuotas(pid) {
 /* ══════════════════════════════════════════
    12. CALCULADORA
 ══════════════════════════════════════════ */
+function limpiarCalculadora() {
+  document.getElementById('calc-cliente').value  = '';
+  document.getElementById('calc-importe').value  = '';
+  document.getElementById('calc-cuotas').value   = '';
+  document.getElementById('calc-tasa').value     = '';
+  document.getElementById('calc-modalidad').value= 'quincenal';
+  document.getElementById('calc-fecha').value    = new Date().toISOString().split('T')[0];
+  // Resultados a $0
+  document.getElementById('res-cuota').textContent   = '$0';
+  document.getElementById('res-total').textContent   = '$0';
+  document.getElementById('res-interes').textContent = '$0';
+  document.getElementById('res-ultimo').textContent  = '—';
+  // Plan en blanco
+  document.getElementById('plan-pagos-container').innerHTML =
+    '<div class="empty-state"><p>Configure los parámetros para ver el plan</p></div>';
+}
+
 function initCalculadora() {
   populateClienteSelect();
-  document.getElementById('calc-fecha').value = new Date().toISOString().split('T')[0];
-  updateCalc();
+  limpiarCalculadora();
 }
 
 function populateClienteSelect() {
@@ -1656,12 +1672,23 @@ function populateClienteSelect() {
 }
 
 function updateCalc() {
-  var imp = parseFloat(document.getElementById('calc-importe').value)||0;
-  var tp  = parseFloat(document.getElementById('calc-tasa').value)||0;
-  var n   = parseInt(document.getElementById('calc-cuotas').value)||1;
-  var mod = document.getElementById('calc-modalidad').value||'quincenal';
+  var imp = parseFloat(document.getElementById('calc-importe').value) || 0;
+  var tp  = parseFloat(document.getElementById('calc-tasa').value)    || 0;
+  var n   = parseInt(document.getElementById('calc-cuotas').value)    || 0;
+  var mod = document.getElementById('calc-modalidad').value || 'quincenal';
   var fec = document.getElementById('calc-fecha').value;
-  if (!imp||!n||!fec) return;
+
+  // Si faltan datos esenciales → mostrar $0 y plan vacío
+  if (!imp || !n || !fec) {
+    document.getElementById('res-cuota').textContent   = '$0';
+    document.getElementById('res-total').textContent   = '$0';
+    document.getElementById('res-interes').textContent = '$0';
+    document.getElementById('res-ultimo').textContent  = '—';
+    document.getElementById('plan-pagos-container').innerHTML =
+      '<div class="empty-state"><p>Configure los parámetros para ver el plan</p></div>';
+    return;
+  }
+
   var tasa  = tp / 100;
   var total = calcularTotal(imp, tasa);
   var cuota = calcularCuota(imp, tasa, n);
@@ -1713,12 +1740,12 @@ async function guardarPrestamo() {
     await supaInsertMany('cuotas', generarCuotas(p));
     var cl = dbGet('clientes').find(function(c){ return c.id === cid; });
     toast('Préstamo creado exitosamente', 's');
-    // ── LOG ──
     registrarLog(
       'Nuevo préstamo creado: ' + formatCOP(imp) + ' para ' + (cl ? cl.nombre : cid),
       'ID: ' + id + ' | Tasa: ' + tp + '% | Cuotas: ' + nc + ' ' + mod,
       'prestamo'
     );
+    limpiarCalculadora();   // ← limpiar para el siguiente registro
     showPage('prestamos');
   } catch(e){ toast('Error: ' + e.message, 'e'); }
 }
