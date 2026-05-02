@@ -606,11 +606,34 @@ tbody tr.tr-mora:hover td{background:rgba(155,28,28,.08)}
         <button class="btn btn-primary" onclick="showPage('calculadora')">+ Nuevo préstamo</button>
       </div>
     </div>
+    <!-- Barra de búsqueda global -->
+    <div style="margin-bottom:.875rem">
+      <div class="search-wrap" style="max-width:340px">
+        <span class="search-icon"><svg width="14" height="14" viewBox="0 0 20 20" fill="none"><circle cx="8.5" cy="8.5" r="5.75" stroke="currentColor" stroke-width="1.5"/><path d="M13 13l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+        <input type="text" id="prestamos-search" placeholder="Buscar por nombre de cliente…"
+               oninput="buscarEnPrestamos(this.value)" style="padding-left:32px">
+      </div>
+    </div>
     <div class="table-wrap">
       <table>
         <thead><tr><th>#</th><th>Cliente</th><th>Fecha</th><th>Importe</th><th>Modalidad</th><th>Tasa</th><th>Total</th><th>Pagado</th><th>Saldo</th><th>Estado</th><th>Acciones</th></tr></thead>
         <tbody id="prestamos-tbody"></tbody>
       </table>
+      <!-- Paginación estática siempre visible -->
+      <div class="pagination" id="pag-prestamos-bar">
+        <span class="pagination-info" id="pag-prestamos-info">Cargando…</span>
+        <div class="pagination-btns">
+          <button class="pag-btn" id="pag-prestamos-prev" onclick="cambiarPaginaPrestamos(-1)" disabled>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Anterior
+          </button>
+          <span class="pag-btn active" id="pag-prestamos-pagina" style="cursor:default;min-width:80px;justify-content:center">Pág. 1</span>
+          <button class="pag-btn" id="pag-prestamos-next" onclick="cambiarPaginaPrestamos(1)">
+            Siguiente
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1448,30 +1471,67 @@ async function eliminarCliente(id) {
 }
 
 /* ══════════════════════════════════════════
-   11. PRÉSTAMOS
+   11. PRÉSTAMOS — paginación real + búsqueda global
 ══════════════════════════════════════════ */
 function setPrestamoFilter(btn, val) {
   prestamoFilter = val;
+  _pagState.prestamos.pag = 0;           // resetear a primera página al cambiar filtro
+  _prestamosQuery = '';                   // resetear búsqueda
+  var si = document.getElementById('prestamos-search');
+  if (si) si.value = '';
   document.querySelectorAll('#page-prestamos .filter-tab').forEach(function(t){ t.classList.remove('active'); });
   btn.classList.add('active');
   renderPrestamos();
 }
 
-function renderPrestamos() {
-  var lista    = dbGet('prestamos').slice().reverse();
-  var clientes = dbGet('clientes');
-  if (prestamoFilter !== 'todos') lista = lista.filter(function(p){ return getEstadoPrestamo(p.id) === prestamoFilter; });
-  var tbody = document.getElementById('prestamos-tbody');
-  if (!lista.length) { tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state"><p>Sin préstamos</p></div></td></tr>'; return; }
+// Búsqueda global: filtra por nombre de cliente en TODA la DB (no solo la página)
+var _prestamosQuery = '';
+function buscarEnPrestamos(q) {
+  _prestamosQuery = (q || '').trim().toLowerCase();
+  _pagState.prestamos.pag = 0;
+  renderPrestamos();
+}
 
-  // Paginación
-  _pagState.prestamos.pag = Math.min(_pagState.prestamos.pag, Math.max(0, Math.ceil(lista.length/_pagState.prestamos.lim)-1));
+function renderPrestamos() {
+  var clientes = dbGet('clientes');
+  var tbody    = document.getElementById('prestamos-tbody');
+
+  // Obtener lista completa
+  var lista = dbGet('prestamos').slice().reverse();
+
+  // Filtro por estado
+  if (prestamoFilter !== 'todos')
+    lista = lista.filter(function(p){ return getEstadoPrestamo(p.id) === prestamoFilter; });
+
+  // Búsqueda global por nombre de cliente (busca en TODOS los préstamos, no solo la página)
+  if (_prestamosQuery) {
+    var clientesFiltrados = clientes.filter(function(c){
+      return c.nombre.toLowerCase().indexOf(_prestamosQuery) >= 0 ||
+             (c.codigo && c.codigo.toLowerCase().indexOf(_prestamosQuery) >= 0);
+    }).map(function(c){ return c.id; });
+    lista = lista.filter(function(p){ return clientesFiltrados.indexOf(p.clienteId) >= 0; });
+  }
+
+  if (!lista.length) {
+    tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state"><p>Sin préstamos' +
+      (_prestamosQuery ? ' para "' + esc(_prestamosQuery) + '"' : '') + '</p></div></td></tr>';
+    actualizarBarraPaginacion('prestamos', 0, 0, 0);
+    return;
+  }
+
+  var total      = lista.length;
+  var lim        = _pagState.prestamos.lim;
+  var totalPags  = Math.max(1, Math.ceil(total / lim));
+
+  // Corregir página si se salió de rango
+  _pagState.prestamos.pag = Math.min(_pagState.prestamos.pag, totalPags - 1);
+
   var pagina = getPaginaSlice('prestamos', lista);
 
   tbody.innerHTML = pagina.map(function(p){
     var cl    = clientes.find(function(c){ return c.id === p.clienteId; });
     var res   = getResumen(p.id);
-    var total = calcularTotal(p.importe, p.tasa);
+    var total_ = calcularTotal(p.importe, p.tasa);
     var est   = getEstadoPrestamo(p.id);
     var bCls  = { activo:'badge-blue', mora:'badge-red', finalizado:'badge-green' }[est];
     var bLbl  = { activo:'Activo', mora:'En mora', finalizado:'Finalizado' }[est];
@@ -1482,7 +1542,7 @@ function renderPrestamos() {
       '<td class="mono">' + formatCOP(p.importe) + '</td>' +
       '<td style="text-transform:capitalize">' + p.modalidad + '</td>' +
       '<td class="mono">' + Math.round(p.tasa * 100) + '%</td>' +
-      '<td class="mono">' + formatCOP(total) + '</td>' +
+      '<td class="mono">' + formatCOP(total_) + '</td>' +
       '<td class="mono" style="color:var(--green)">' + formatCOP(res.totalPagado) + '</td>' +
       '<td class="mono" style="color:' + (res.saldo>0?'var(--amber)':'var(--green)') + '">' + formatCOP(res.saldo) + '</td>' +
       '<td><span class="badge ' + bCls + '">' + bLbl + '</span></td>' +
@@ -1491,9 +1551,52 @@ function renderPrestamos() {
       '</td></tr>';
   }).join('');
 
-  // Paginación debajo de la tabla
-  var wrap = document.querySelector('#page-prestamos .table-wrap');
-  if (wrap) renderPaginacion('prestamos', wrap.parentElement, renderPrestamos);
+  actualizarBarraPaginacion('prestamos', _pagState.prestamos.pag, totalPags, total);
+}
+
+// Actualiza el estado visual de la barra de paginación estática
+function actualizarBarraPaginacion(key, pag, totalPags, total) {
+  var lim   = _pagState[key].lim;
+  var desde = total > 0 ? pag * lim + 1 : 0;
+  var hasta = Math.min(desde + lim - 1, total);
+
+  var info  = document.getElementById('pag-' + key + '-info');
+  var prev  = document.getElementById('pag-' + key + '-prev');
+  var next  = document.getElementById('pag-' + key + '-next');
+  var label = document.getElementById('pag-' + key + '-pagina');
+  var bar   = document.getElementById('pag-' + key + '-bar');
+
+  if (!info || !prev || !next || !label) return;
+
+  // Mostrar u ocultar barra completa
+  if (bar) bar.style.display = total > lim ? 'flex' : 'none';
+
+  info.textContent  = total > 0
+    ? 'Mostrando ' + desde + '–' + hasta + ' de ' + total
+    : 'Sin resultados';
+  label.textContent = 'Pág. ' + (pag + 1) + ' / ' + (totalPags || 1);
+  prev.disabled     = (pag <= 0);
+  next.disabled     = (pag >= totalPags - 1);
+}
+
+function cambiarPaginaPrestamos(delta) {
+  var lista = dbGet('prestamos').slice();
+  if (prestamoFilter !== 'todos')
+    lista = lista.filter(function(p){ return getEstadoPrestamo(p.id) === prestamoFilter; });
+  if (_prestamosQuery) {
+    var cls = dbGet('clientes').filter(function(c){
+      return c.nombre.toLowerCase().indexOf(_prestamosQuery) >= 0;
+    }).map(function(c){ return c.id; });
+    lista = lista.filter(function(p){ return cls.indexOf(p.clienteId) >= 0; });
+  }
+  var totalPags = Math.max(1, Math.ceil(lista.length / _pagState.prestamos.lim));
+  var nueva     = _pagState.prestamos.pag + delta;
+  if (nueva < 0 || nueva >= totalPags) return;
+  _pagState.prestamos.pag = nueva;
+  renderPrestamos();
+  // Scroll suave al tope de la tabla
+  var pg = document.getElementById('page-prestamos');
+  if (pg) pg.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
 async function eliminarPrestamo(id) {
@@ -1662,6 +1765,12 @@ function renderCobros(q) {
           '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.093.541 4.063 1.487 5.783L0 24l6.368-1.466A11.93 11.93 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.95 0-3.773-.497-5.36-1.37l-.38-.22-3.78.87.9-3.68-.25-.39A9.956 9.956 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>' +
         '</button>'
       : '<span style="color:var(--text3);font-size:11px">—</span>';
+    // ── Columna de mora: vacía si está PAGADO ──
+    var moraCell = c.estado === 'pagado'
+      ? '<td style="font-size:12px;color:var(--text3)">—</td>'
+      : esMora
+        ? '<td style="font-size:12px;color:var(--red);font-weight:600">⚠ ' + mora + ' días</td>'
+        : '<td style="font-size:12px;color:var(--text3)">—</td>';
     return '<tr class="' + (esMora ? 'tr-mora' : '') + '">' +
       '<td style="font-size:12px;color:var(--text3)">' + c.label + '</td>' +
       '<td style="font-weight:500">' + (cl ? cl.nombre : '?') + '</td>' +
@@ -1671,7 +1780,7 @@ function renderCobros(q) {
       '<td class="mono" style="color:var(--green)">' + formatCOP(c.pagado||0) + '</td>' +
       '<td class="mono" style="color:' + (sal>0?'var(--amber)':'var(--green)') + '">' + formatCOP(sal) + '</td>' +
       '<td><span class="badge ' + bM[estR] + '">' + lM[estR] + '</span></td>' +
-      '<td style="font-size:12px;color:' + (mora>0?'var(--red)':'var(--text3)') + ';font-weight:' + (mora>0?'600':'400') + '">' + (mora>0?'⚠ '+mora+' días':'—') + '</td>' +
+      moraCell +
       '<td>' + waBtn + '</td>' +
       '<td>' + (c.estado !== 'pagado' ?
         '<button class="btn btn-sm btn-success" onclick="abrirModalPago(\'' + c.id + '\')">Cobrar</button>' :
@@ -1938,7 +2047,15 @@ function buscarCliente(q) {
         '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
           '<button class="ec-print-btn" style="background:var(--green)" onclick="generarPDFEstadoCuenta(\'' + cl.id + '\')">' +
             '<svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M4 4v12h12V8l-4-4H4z" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/><path d="M12 4v4h4M7 12h6M7 14h4" stroke="#fff" stroke-width="1.3" stroke-linecap="round"/></svg>' +
-            'Descargar PDF' +
+            'Estado de Cuenta' +
+          '</button>' +
+          '<button class="ec-print-btn" style="background:var(--red)" onclick="generarPDFCobranza(\'' + cl.id + '\')">' +
+            '<svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M10 3L2 17h16L10 3z" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 8v4M10 14v.5" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/></svg>' +
+            'PDF Cobranza' +
+          '</button>' +
+          '<button class="ec-print-btn" style="background:var(--accent2)" onclick="generarPDFPazYSalvo(\'' + cl.id + '\')">' +
+            '<svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M4 10l4 4 8-8" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+            'Paz y Salvo' +
           '</button>' +
           '<button class="ec-print-btn" onclick="imprimirEstadoCuenta(\'' + cl.id + '\')">' +
             '<svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M5 8V4h10v4M5 16H4a2 2 0 01-2-2v-4a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2h-1M5 12h10v4H5v-4z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
@@ -2269,22 +2386,22 @@ var _pagState = {
   prestamos: { pag:0, lim:10, total:0 }
 };
 
-function renderPaginacion(key, containerId, renderFn) {
-  var st     = _pagState[key];
-  var total  = (key === 'clientes' ? dbGet('clientes') : dbGet('prestamos')).length;
-  var totalPags = Math.max(1, Math.ceil(total / st.lim));
-  st.total   = total;
-  var desde  = st.pag * st.lim + 1;
-  var hasta  = Math.min(desde + st.lim - 1, total);
+function renderPaginacion(key, container, renderFn) {
+  // La barra de préstamos es estática en el HTML — no la manejamos aquí
+  if (key === 'prestamos') return;
 
-  var existing = document.getElementById(containerId);
-  if (!existing) return;
+  var st       = _pagState[key];
+  var arr      = dbGet(key === 'clientes' ? 'clientes' : key);
+  var total    = arr.length;
+  var totalPags= Math.max(1, Math.ceil(total / st.lim));
+  var desde    = st.pag * st.lim + 1;
+  var hasta    = Math.min(desde + st.lim - 1, total);
 
   // Quitar paginación anterior si existe
   var prev = document.getElementById('pag-' + key);
   if (prev) prev.remove();
 
-  if (total <= st.lim) return; // No necesita paginación
+  if (total <= st.lim) return;
 
   var div = document.createElement('div');
   div.id  = 'pag-' + key;
@@ -2295,24 +2412,30 @@ function renderPaginacion(key, containerId, renderFn) {
       '<button class="pag-btn" onclick="cambiarPagina(\'' + key + '\',' + (st.pag-1) + ')" ' + (st.pag===0?'disabled':'') + '>' +
         '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Anterior' +
       '</button>' +
-      Array.from({length:totalPags}, function(_,i){
-        return '<button class="pag-btn' + (i===st.pag?' active':'') + '" onclick="cambiarPagina(\'' + key + '\',' + i + ')">' + (i+1) + '</button>';
+      Array.from({length: Math.min(totalPags,7)}, function(_,i){
+        // Si hay muchas páginas mostrar elipsis
+        var pg = i;
+        if (totalPags > 7) {
+          var pages = [0, st.pag-1, st.pag, st.pag+1, totalPags-1];
+          pg = pages.filter(function(p){ return p>=0&&p<totalPags; })[i] || 0;
+        }
+        return '<button class="pag-btn' + (pg===st.pag?' active':'') + '" onclick="cambiarPagina(\'' + key + '\',' + pg + ')">' + (pg+1) + '</button>';
       }).join('') +
       '<button class="pag-btn" onclick="cambiarPagina(\'' + key + '\',' + (st.pag+1) + ')" ' + (st.pag>=totalPags-1?'disabled':'') + '>' +
         'Siguiente<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
       '</button>' +
     '</div>';
 
-  existing.appendChild(div);
+  if (container) container.appendChild(div);
 }
 
 function cambiarPagina(key, nuevaPag) {
-  var total = (key === 'clientes' ? dbGet('clientes') : dbGet('prestamos')).length;
+  if (key === 'prestamos') { cambiarPaginaPrestamos(nuevaPag - _pagState.prestamos.pag); return; }
+  var total     = dbGet(key).length;
   var totalPags = Math.max(1, Math.ceil(total / _pagState[key].lim));
   if (nuevaPag < 0 || nuevaPag >= totalPags) return;
   _pagState[key].pag = nuevaPag;
-  if (key === 'clientes')  renderClientes(document.getElementById('cliente-search').value || '');
-  if (key === 'prestamos') renderPrestamos();
+  if (key === 'clientes') renderClientes(document.getElementById('cliente-search').value || '');
 }
 
 /* ── Filtrar con paginación ── */
@@ -2496,6 +2619,477 @@ function generarPDFEstadoCuenta(clienteId) {
   doc.save(nombreArchivo);
   toast('PDF generado: ' + nombreArchivo, 's');
   registrarLog('PDF Estado de Cuenta generado para ' + cl.nombre, folio, 'sistema');
+}
+
+/* ══════════════════════════════════════════
+   PDF COBRANZA — Solo préstamos ACTIVOS / MORA
+   Documento de cobro formal con saldo vigente
+══════════════════════════════════════════ */
+function generarPDFCobranza(clienteId) {
+  if (typeof window.jspdf === 'undefined') {
+    toast('Librería PDF no cargada aún', 'e'); return;
+  }
+  var cl = dbGet('clientes').find(function(c){ return c.id === clienteId; });
+  if (!cl) { toast('Cliente no encontrado', 'e'); return; }
+
+  // ── Filtrar solo préstamos activos / en mora ──
+  var todosPrest = dbGet('prestamos').filter(function(p){ return p.clienteId === clienteId; });
+  var cuotas     = dbGet('cuotas').filter(function(c){ return c.clienteId === clienteId; });
+  var prestamos  = todosPrest.filter(function(p){
+    var e = getEstadoPrestamo(p.id);
+    return e === 'activo' || e === 'mora';
+  }).sort(function(a,b){ return b.fecha.localeCompare(a.fecha); });
+
+  if (!prestamos.length) {
+    toast('Este cliente no tiene préstamos activos o en mora', 'i');
+    return;
+  }
+
+  var { jsPDF }     = window.jspdf;
+  var doc           = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  var W             = doc.internal.pageSize.getWidth();
+  var hoy           = new Date().toLocaleDateString('es-CO',{ day:'2-digit', month:'long', year:'numeric' });
+  var horaImp       = new Date().toLocaleString('es-CO',{ day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  var folio         = 'COB-' + Date.now().toString(36).toUpperCase().slice(-8);
+
+  // Totales sobre préstamos activos únicamente
+  var cuotasActivas = cuotas.filter(function(c){
+    return prestamos.some(function(p){ return p.id === c.prestamoId; });
+  });
+  var totalCapital  = prestamos.reduce(function(s,p){ return s + p.importe; }, 0);
+  var totalPagado   = cuotasActivas.reduce(function(s,c){ return s + (c.pagado||0); }, 0);
+  var totalSaldo    = cuotasActivas.reduce(function(s,c){ return s + Math.max(0, c.valor-(c.pagado||0)); }, 0);
+  var enMora        = prestamos.filter(function(p){ return getEstadoPrestamo(p.id)==='mora'; }).length;
+
+  /* ── Banda roja de cobranza ── */
+  doc.setFillColor(155, 28, 28);
+  doc.roundedRect(14, 10, W-28, 32, 3, 3, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.text('AVISO DE COBRANZA', 20, 22);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text('Inversiones GSG  ·  Documento de cobro formal', 20, 28);
+  doc.text('Folio: ' + folio, 20, 34);
+  doc.text('Fecha: ' + horaImp, W - 16, 34, { align:'right' });
+
+  /* ── Franja de alerta ── */
+  doc.setFillColor(255, 241, 242);
+  doc.rect(14, 46, W-28, 10, 'F');
+  doc.setDrawColor(155, 28, 28);
+  doc.rect(14, 46, W-28, 10);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(155, 28, 28);
+  doc.text(
+    '⚠  Este documento acredita una deuda vigente. Se requiere pago inmediato.',
+    W/2, 52.5, { align:'center' }
+  );
+
+  /* ── Datos del cliente ── */
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(14, 60, W-28, 22, 2, 2, 'F');
+  doc.setDrawColor(220, 225, 230);
+  doc.roundedRect(14, 60, W-28, 22, 2, 2);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(13, 27, 42);
+  doc.text(cl.nombre, 19, 68);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(70, 85, 104);
+  var infoC = 'Código: ' + cl.codigo;
+  if (cl.cedula)    infoC += '   ·   Cédula: '  + cl.cedula;
+  if (cl.telefono)  infoC += '   ·   Tel: '      + cl.telefono;
+  if (cl.domicilio) infoC += '   ·   Dirección: ' + cl.domicilio;
+  doc.text(infoC, 19, 75);
+
+  /* ── Métricas ── */
+  var mets = [
+    { lbl:'Capital adeudado',   val:formatCOP(totalCapital), clr:[7,89,133]   },
+    { lbl:'Total pagado',       val:formatCOP(totalPagado),  clr:[10,102,64]  },
+    { lbl:'SALDO POR COBRAR',   val:formatCOP(totalSaldo),   clr:[155,28,28]  },
+    { lbl:'Créditos en mora',   val:String(enMora),          clr:[146,64,14]  }
+  ];
+  var mW = (W-28)/4;
+  mets.forEach(function(m, i) {
+    var x = 14 + i * mW;
+    doc.setFillColor(i===2 ? 254:248, i===2 ? 226:250, i===2 ? 226:252);
+    doc.rect(x, 86, mW, 18, 'F');
+    doc.setDrawColor(i===2 ? 155:210, i===2 ? 28:220, i===2 ? 28:230);
+    doc.rect(x, 86, mW, 18);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(m.lbl.toUpperCase(), x + mW/2, 91, { align:'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(i===2 ? 10:9);
+    doc.setTextColor(m.clr[0], m.clr[1], m.clr[2]);
+    doc.text(m.val, x + mW/2, 99, { align:'center' });
+  });
+
+  /* ── Tabla de cuotas pendientes por préstamo ── */
+  var bodyRows = [];
+  prestamos.forEach(function(p) {
+    var res    = getResumen(p.id);
+    var est    = getEstadoPrestamo(p.id);
+    var cuotasP= cuotas.filter(function(c){ return c.prestamoId===p.id && c.estado!=='pagado'; })
+                       .sort(function(a,b){ return a.fechaVence.localeCompare(b.fechaVence); });
+    var proxFecha = cuotasP.length ? formatDate(cuotasP[0].fechaVence) : '—';
+
+    // Fila grupo del préstamo
+    bodyRows.push([{
+      content: 'PRÉSTAMO #' + p.id.replace('P_','') +
+               '   ·   ' + p.modalidad.charAt(0).toUpperCase()+p.modalidad.slice(1) +
+               '   ·   Tasa ' + Math.round(p.tasa*100) + '%' +
+               '   ·   ' + p.numCuotas + ' cuotas' +
+               '   ·   Estado: ' + (est==='mora' ? '⚠ EN MORA' : 'ACTIVO') +
+               '   ·   Próx. vto: ' + proxFecha,
+      colSpan: 6,
+      styles: { fillColor: est==='mora' ? [155,28,28] : [26,86,219], textColor:[255,255,255], fontStyle:'bold', fontSize:7.5 }
+    }]);
+
+    cuotasP.forEach(function(c) {
+      var mora = getDiasMora(c.fechaVence);
+      var sal  = Math.max(0, c.valor - (c.pagado||0));
+      bodyRows.push([
+        c.label,
+        formatDate(c.fechaVence),
+        formatCOP(c.valor),
+        formatCOP(c.pagado||0),
+        formatCOP(sal),
+        mora > 0 ? 'Mora ' + mora + 'd' : 'Pendiente'
+      ]);
+    });
+
+    // Subtotal del préstamo
+    bodyRows.push([
+      { content:'Subtotal #' + p.id.replace('P_',''), colSpan:4,
+        styles:{ fontStyle:'bold', fillColor:[240,244,248], textColor:[30,50,80] } },
+      { content: formatCOP(res.saldo),
+        styles:{ fontStyle:'bold', halign:'right', fillColor:[240,244,248], textColor:[155,28,28] } },
+      { content:'', styles:{ fillColor:[240,244,248] } }
+    ]);
+  });
+
+  doc.autoTable({
+    startY: 109,
+    head  : [['Cuota','Fecha vto.','Valor cuota','Ya pagado','Saldo pend.','Estado']],
+    body  : bodyRows,
+    theme : 'grid',
+    styles: { fontSize:8, cellPadding:2.5, font:'helvetica' },
+    headStyles: { fillColor:[30,50,80], textColor:[255,255,255], fontStyle:'bold', fontSize:7.5 },
+    columnStyles: {
+      0:{ cellWidth:22 },
+      1:{ cellWidth:26 },
+      2:{ cellWidth:30, halign:'right' },
+      3:{ cellWidth:30, halign:'right' },
+      4:{ cellWidth:30, halign:'right', fontStyle:'bold' },
+      5:{ cellWidth:24, halign:'center' }
+    },
+    didParseCell: function(data) {
+      if (data.section === 'body' && Array.isArray(data.row.raw)) {
+        var estado = data.row.raw[5];
+        if (typeof estado === 'string' && estado.includes('Mora') && data.column.index === 5)
+          data.cell.styles.textColor = [155, 28, 28];
+        if (typeof estado === 'string' && estado === 'Pendiente' && data.column.index === 5)
+          data.cell.styles.textColor = [146, 64, 14];
+      }
+    },
+    margin: { left:14, right:14 }
+  });
+
+  /* ── Total a pagar (resaltado rojo) ── */
+  var fy = doc.lastAutoTable.finalY + 6;
+  doc.setFillColor(155, 28, 28);
+  doc.roundedRect(14, fy, W-28, 16, 2, 2, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(255, 255, 255);
+  doc.text('TOTAL A CANCELAR INMEDIATAMENTE:', 20, fy+10);
+  doc.setFontSize(14);
+  doc.text(formatCOP(totalSaldo), W-16, fy+10, { align:'right' });
+
+  /* ── Texto legal ── */
+  var ly = fy + 24;
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(7.5);
+  doc.setTextColor(70, 85, 104);
+  doc.text(
+    'El presente documento constituye un aviso formal de cobro de las obligaciones financieras pendientes con',
+    W/2, ly, { align:'center' }
+  );
+  doc.text(
+    'Inversiones GSG. El no pago puede dar lugar a acciones legales de cobro.',
+    W/2, ly+4, { align:'center' }
+  );
+
+  /* ── Pie ── */
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(148, 163, 184);
+  doc.text(
+    'Inversiones GSG  ·  Aviso de Cobranza  ·  Folio ' + folio + '  ·  Generado: ' + horaImp,
+    W/2, ly+12, { align:'center' }
+  );
+
+  var nombreArchivo = 'Cobranza_' + cl.nombre.replace(/\s+/g,'_') + '_' + folio + '.pdf';
+  doc.save(nombreArchivo);
+  toast('PDF de Cobranza generado ✓', 's');
+  registrarLog('PDF Cobranza generado para ' + cl.nombre, folio, 'sistema');
+}
+
+/* ══════════════════════════════════════════
+   PDF PAZ Y SALVO — Solo préstamos FINALIZADOS
+   Certificado oficial de deuda saldada en $0
+══════════════════════════════════════════ */
+function generarPDFPazYSalvo(clienteId) {
+  if (typeof window.jspdf === 'undefined') {
+    toast('Librería PDF no cargada aún', 'e'); return;
+  }
+  var cl = dbGet('clientes').find(function(c){ return c.id === clienteId; });
+  if (!cl) { toast('Cliente no encontrado', 'e'); return; }
+
+  // ── Solo préstamos FINALIZADOS ──
+  var todosPrest = dbGet('prestamos').filter(function(p){ return p.clienteId === clienteId; });
+  var cuotas     = dbGet('cuotas').filter(function(c){ return c.clienteId === clienteId; });
+  var prestamos  = todosPrest.filter(function(p){ return getEstadoPrestamo(p.id) === 'finalizado'; })
+                             .sort(function(a,b){ return b.fecha.localeCompare(a.fecha); });
+
+  // Verificar que no haya activos pendientes
+  var tieneActivos = todosPrest.some(function(p){
+    var e = getEstadoPrestamo(p.id);
+    return e === 'activo' || e === 'mora';
+  });
+
+  if (!prestamos.length) {
+    toast('Este cliente no tiene préstamos finalizados', 'i');
+    return;
+  }
+  if (tieneActivos) {
+    toast('⚠ Atención: el cliente aún tiene préstamos activos. El Paz y Salvo solo certifica los finalizados.', 'i');
+  }
+
+  var { jsPDF } = window.jspdf;
+  var doc       = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  var W         = doc.internal.pageSize.getWidth();
+  var H         = doc.internal.pageSize.getHeight();
+  var hoy       = new Date().toLocaleDateString('es-CO',{ day:'2-digit', month:'long', year:'numeric' });
+  var horaImp   = new Date().toLocaleString('es-CO',{ day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  var folio     = 'PS-' + Date.now().toString(36).toUpperCase().slice(-8);
+
+  // Totales de préstamos finalizados
+  var cuotasFin     = cuotas.filter(function(c){ return prestamos.some(function(p){ return p.id===c.prestamoId; }); });
+  var totalCapital  = prestamos.reduce(function(s,p){ return s+p.importe; }, 0);
+  var totalPagado   = cuotasFin.reduce(function(s,c){ return s+(c.pagado||0); }, 0);
+  var totalInteres  = cuotasFin.reduce(function(s,c){ return s+(c.valor-(c.pagado||0)<=0 ? 0:0) + (c.pagado||0); }, 0);
+
+  /* ── Borde decorativo doble ── */
+  doc.setDrawColor(109, 40, 217);
+  doc.setLineWidth(2);
+  doc.rect(8, 8, W-16, H-16);
+  doc.setLineWidth(0.5);
+  doc.rect(11, 11, W-22, H-22);
+
+  /* ── Sello / marca de agua "CANCELADO" ── */
+  doc.saveGraphicsState();
+  doc.setGState(new doc.GState({ opacity: 0.06 }));
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(80);
+  doc.setTextColor(10, 102, 64);
+  doc.text('CANCELADO', W/2, H/2+10, { align:'center', angle:35 });
+  doc.restoreGraphicsState();
+
+  /* ── Encabezado institucional ── */
+  // Banda verde certificación
+  doc.setFillColor(10, 102, 64);
+  doc.rect(15, 15, W-30, 36, 'F');
+
+  // Icono checkmark área
+  doc.setFillColor(255, 255, 255);
+  doc.circle(28, 33, 8, 'F');
+  doc.setDrawColor(10, 102, 64);
+  doc.setLineWidth(2);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(10, 102, 64);
+  doc.text('✓', 28, 37, { align:'center' });
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(17);
+  doc.text('CERTIFICADO DE PAZ Y SALVO', 40, 27);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text('Inversiones GSG  ·  Departamento de Crédito y Cartera', 40, 33);
+  doc.text('Folio: ' + folio + '   ·   Fecha de emisión: ' + hoy, 40, 39);
+
+  /* ── Texto certificador ── */
+  var cy = 62;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(13, 27, 42);
+  doc.text('INVERSIONES GSG certifica que:', W/2, cy, { align:'center' });
+
+  cy += 10;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(30, 50, 80);
+  var nombreCompleto = cl.nombre.toUpperCase();
+  var cedInfo = cl.cedula ? ', identificado(a) con cédula N.° ' + cl.cedula + ',' : ',';
+  var lines = doc.splitTextToSize(
+    'El señor(a) ' + nombreCompleto + cedInfo +
+    ' ha cumplido satisfactoriamente con la totalidad de sus obligaciones crediticias ' +
+    'ante esta institución, habiendo cancelado el 100% del capital e intereses pactados. ' +
+    'A la fecha de emisión del presente documento, su saldo es de CERO PESOS ($0.00 COP), ' +
+    'quedando a PAZ Y SALVO con Inversiones GSG por los créditos relacionados a continuación.',
+    W - 50
+  );
+  doc.text(lines, W/2, cy, { align:'center' });
+  cy += lines.length * 5 + 8;
+
+  /* ── Caja de saldo certificado ── */
+  doc.setFillColor(236, 253, 245);
+  doc.roundedRect(30, cy, W-60, 20, 3, 3, 'F');
+  doc.setDrawColor(10, 102, 64);
+  doc.setLineWidth(1.5);
+  doc.roundedRect(30, cy, W-60, 20, 3, 3);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(10, 102, 64);
+  doc.text('SALDO TOTAL CERTIFICADO:', W/2, cy+8, { align:'center' });
+  doc.setFontSize(15);
+  doc.text('$0.00 COP  ✓  CERO PESOS', W/2, cy+16, { align:'center' });
+  cy += 30;
+
+  /* ── Tabla de préstamos finalizados ── */
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(13, 27, 42);
+  doc.text('Detalle de créditos cancelados:', 15, cy);
+  cy += 4;
+
+  var bodyRows = [];
+  prestamos.forEach(function(p) {
+    var cuotasP = cuotas.filter(function(c){ return c.prestamoId===p.id; });
+    var pagado  = cuotasP.reduce(function(s,c){ return s+(c.pagado||0); }, 0);
+    var total   = calcularTotal(p.importe, p.tasa);
+    // Última fecha de pago
+    var fechas  = cuotasP.filter(function(c){ return c.fechaPago; }).map(function(c){ return c.fechaPago; }).sort();
+    var ultimoPago = fechas.length ? formatDate(fechas[fechas.length-1]) : '—';
+
+    bodyRows.push([
+      '#' + p.id.replace('P_',''),
+      formatDate(p.fecha),
+      p.modalidad.charAt(0).toUpperCase()+p.modalidad.slice(1),
+      Math.round(p.tasa*100) + '%',
+      p.numCuotas + ' cuotas',
+      formatCOP(p.importe),
+      formatCOP(total),
+      formatCOP(pagado),
+      ultimoPago,
+      '$0'
+    ]);
+  });
+
+  doc.autoTable({
+    startY: cy,
+    head  : [['#','Inicio','Modalidad','Tasa','Cuotas','Capital','Total pact.','Total pag.','Último pago','Saldo']],
+    body  : bodyRows,
+    theme : 'grid',
+    styles: { fontSize:7, cellPadding:2, font:'helvetica' },
+    headStyles: { fillColor:[10,102,64], textColor:[255,255,255], fontStyle:'bold', fontSize:6.5 },
+    columnStyles: {
+      0:{ cellWidth:14 },  1:{ cellWidth:18 }, 2:{ cellWidth:20 },
+      3:{ cellWidth:10 },  4:{ cellWidth:14 }, 5:{ cellWidth:24, halign:'right' },
+      6:{ cellWidth:24, halign:'right' }, 7:{ cellWidth:24, halign:'right' },
+      8:{ cellWidth:18 },  9:{ cellWidth:14, halign:'center', fontStyle:'bold' }
+    },
+    didParseCell: function(data) {
+      if (data.section==='body' && data.column.index===9) {
+        data.cell.styles.textColor = [10, 102, 64];
+      }
+    },
+    margin: { left:14, right:14 }
+  });
+
+  /* ── Resumen financiero final ── */
+  var fy = doc.lastAutoTable.finalY + 6;
+  var rCols = [
+    { lbl:'Créditos certificados', val:String(prestamos.length),   clr:[26,86,219]  },
+    { lbl:'Capital total',         val:formatCOP(totalCapital),    clr:[7,89,133]   },
+    { lbl:'Total cancelado',       val:formatCOP(totalPagado),     clr:[10,102,64]  },
+    { lbl:'Saldo certificado',     val:'$0',                       clr:[10,102,64]  }
+  ];
+  var rW = (W-28)/4;
+  rCols.forEach(function(m, i) {
+    var x = 14 + i * rW;
+    doc.setFillColor(i===3 ? 236:248, i===3 ? 253:250, i===3 ? 245:252);
+    doc.rect(x, fy, rW, 16, 'F');
+    doc.setDrawColor(i===3 ? 10:210, i===3 ? 102:220, i===3 ? 64:230);
+    doc.rect(x, fy, rW, 16);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(m.lbl.toUpperCase(), x+rW/2, fy+5, { align:'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(i===3 ? 11:9);
+    doc.setTextColor(m.clr[0], m.clr[1], m.clr[2]);
+    doc.text(m.val, x+rW/2, fy+13, { align:'center' });
+  });
+
+  /* ── Sección de firmas ── */
+  var sigY = fy + 28;
+  // Solo si cabe en la página actual
+  if (sigY + 40 > H - 20) { doc.addPage(); sigY = 20; }
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(70, 85, 104);
+  doc.text('Firmas de certificación:', 15, sigY);
+
+  // Línea firma emisor
+  doc.setDrawColor(100, 116, 139);
+  doc.setLineWidth(0.4);
+  doc.line(20, sigY+22, 85, sigY+22);
+  doc.setFontSize(7.5);
+  doc.text('Representante Inversiones GSG', 52, sigY+27, { align:'center' });
+  doc.text('Cargo: Gerencia de Cartera', 52, sigY+31, { align:'center' });
+
+  // Línea firma cliente
+  doc.line(W-85, sigY+22, W-20, sigY+22);
+  doc.text(cl.nombre, W-52, sigY+27, { align:'center' });
+  doc.text('Deudor(a) / Aceptado', W-52, sigY+31, { align:'center' });
+
+  /* ── Nota legal + pie ── */
+  var nlY = sigY + 40;
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(14, nlY, W-28, 16, 2, 2, 'F');
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(7);
+  doc.setTextColor(100, 116, 139);
+  var nota = doc.splitTextToSize(
+    'NOTA LEGAL: El presente certificado es válido únicamente para los créditos descritos en este documento. ' +
+    'Cualquier obligación crediticia contraída con posterioridad a la fecha de emisión no queda incluida en esta certificación. ' +
+    'Este documento fue generado electrónicamente por el sistema de gestión de Inversiones GSG y tiene validez sin firma física.',
+    W - 40
+  );
+  doc.text(nota, W/2, nlY+5, { align:'center' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(180, 190, 200);
+  doc.text(
+    'Inversiones GSG  ·  Certificado de Paz y Salvo  ·  Folio ' + folio + '  ·  Emitido: ' + horaImp,
+    W/2, H-14, { align:'center' }
+  );
+
+  var nombreArchivo = 'PazYSalvo_' + cl.nombre.replace(/\s+/g,'_') + '_' + folio + '.pdf';
+  doc.save(nombreArchivo);
+  toast('Certificado Paz y Salvo generado ✓', 's');
+  registrarLog('PDF Paz y Salvo generado para ' + cl.nombre, folio + ' | ' + prestamos.length + ' crédito(s) certificado(s)', 'sistema');
 }
 
 /* ══════════════════════════════════════════
