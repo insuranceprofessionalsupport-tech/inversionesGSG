@@ -4,8 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Inversiones GSG v2.0</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#1a56db">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Inversiones GSG">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -370,9 +378,97 @@ tbody tr.tr-mora:hover td{background:rgba(155,28,28,.08)}
   .page-header{flex-direction:column;align-items:flex-start}
 }
 @media(max-width:480px){.stats-grid{grid-template-columns:1fr}}
+
+/* ══ TOP PROGRESS BAR ══ */
+#top-progress{
+  position:fixed;top:0;left:0;right:0;height:3px;z-index:9997;
+  background:transparent;pointer-events:none;
+}
+#top-progress-fill{
+  height:100%;width:0%;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  transition:width .3s ease;
+  box-shadow:0 0 8px var(--accent);
+}
+
+/* ══ WHATSAPP BTN ══ */
+.btn-wa{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:28px;height:28px;border-radius:6px;border:none;
+  background:#25D366;color:#fff;cursor:pointer;
+  transition:var(--tr);flex-shrink:0;vertical-align:middle;
+}
+.btn-wa:hover{background:#1ebe57;transform:scale(1.08)}
+.btn-wa svg{width:15px;height:15px}
+
+/* ══ PAGINATION ══ */
+.pagination{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.75rem 1rem;border-top:1px solid var(--border);
+  background:var(--surface);border-radius:0 0 var(--r-xl) var(--r-xl);
+  font-size:12px;color:var(--text2);
+}
+.pagination-info{font-size:12px;color:var(--text3)}
+.pagination-btns{display:flex;gap:6px}
+.pag-btn{
+  display:inline-flex;align-items:center;gap:4px;padding:5px 12px;
+  border-radius:6px;border:1px solid var(--border);background:var(--surface);
+  color:var(--text2);font-family:var(--font);font-size:12px;font-weight:500;
+  cursor:pointer;transition:var(--tr);
+}
+.pag-btn:hover:not(:disabled){background:var(--surface2);border-color:var(--border2);color:var(--text)}
+.pag-btn:disabled{opacity:.4;cursor:not-allowed}
+.pag-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ══ PWA INSTALL BANNER ══ */
+#pwa-banner{
+  display:none;position:fixed;bottom:1.5rem;left:1.5rem;z-index:9990;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);
+  box-shadow:var(--sh-lg);padding:1rem 1.25rem;max-width:320px;
+}
+#pwa-banner.visible{display:flex;align-items:center;gap:12px}
+.pwa-banner-icon{
+  width:40px;height:40px;border-radius:10px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;color:#fff;
+}
+.pwa-banner-body{flex:1;min-width:0}
+.pwa-banner-title{font-size:13px;font-weight:600;color:var(--text)}
+.pwa-banner-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.pwa-banner-actions{display:flex;gap:6px;margin-top:.625rem}
+.pwa-btn-install{
+  padding:5px 12px;border-radius:6px;border:none;
+  background:var(--accent);color:#fff;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;
+}
+.pwa-btn-dismiss{
+  padding:5px 10px;border-radius:6px;border:1px solid var(--border);
+  background:transparent;color:var(--text2);font-family:var(--font);font-size:12px;cursor:pointer;
+}
 </style>
 </head>
 <body>
+
+<!-- ═══════ TOP PROGRESS BAR ═══════ -->
+<div id="top-progress"><div id="top-progress-fill"></div></div>
+
+<!-- ═══════ PWA INSTALL BANNER ═══════ -->
+<div id="pwa-banner">
+  <div class="pwa-banner-icon">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" color="#fff">
+      <path d="M7 16H3a1 1 0 01-1-1V5a1 1 0 011-1h14a1 1 0 011 1v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="8" y="9" width="13" height="10" rx="1.5" stroke="currentColor" stroke-width="1.8"/>
+      <circle cx="14.5" cy="14" r="2" stroke="currentColor" stroke-width="1.5"/>
+    </svg>
+  </div>
+  <div style="flex:1;min-width:0">
+    <div class="pwa-banner-title">Instalar Inversiones GSG</div>
+    <div class="pwa-banner-sub">Accede sin internet desde tu pantalla de inicio</div>
+    <div class="pwa-banner-actions">
+      <button class="pwa-btn-install" onclick="instalarPWA()">Instalar</button>
+      <button class="pwa-btn-dismiss" onclick="cerrarBannerPWA()">Ahora no</button>
+    </div>
+  </div>
+</div>
 
 <!-- ═══════ LOGIN ═══════ -->
 <div id="login-screen">
@@ -567,7 +663,7 @@ tbody tr.tr-mora:hover td{background:rgba(155,28,28,.08)}
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Cuota</th><th>Cliente</th><th>Préstamo</th><th>Vence</th><th>Valor</th><th>Pagado</th><th>Saldo</th><th>Estado</th><th>Mora</th><th>Acción</th></tr></thead>
+        <thead><tr><th>Cuota</th><th>Cliente</th><th>Préstamo</th><th>Vence</th><th>Valor</th><th>Pagado</th><th>Saldo</th><th>Estado</th><th>Mora</th><th>WhatsApp</th><th>Acción</th></tr></thead>
         <tbody id="cobros-tbody"></tbody>
       </table>
     </div>
@@ -710,15 +806,63 @@ async function supaFetch(tabla, opts) {
   const { method='GET', filters='', body=null } = opts || {};
   const url  = REST_BASE + '/' + tabla + (filters ? '?' + filters : '');
   const hdrs = await getHeaders();
-  const res  = await fetch(url, { method, headers: hdrs, body: body ? JSON.stringify(body) : undefined });
-  if (!res.ok) { const t = await res.text(); throw new Error('[' + method + ' ' + tabla + '] ' + res.status + ': ' + t); }
-  const t = await res.text();
-  return t ? JSON.parse(t) : [];
+  progStart();
+  try {
+    const res = await fetch(url, { method, headers: hdrs, body: body ? JSON.stringify(body) : undefined });
+    if (!res.ok) { const t = await res.text(); progError(); throw new Error('[' + method + ' ' + tabla + '] ' + res.status + ': ' + t); }
+    const t = await res.text();
+    progDone();
+    return t ? JSON.parse(t) : [];
+  } catch(err) {
+    progError();
+    throw err;
+  }
 }
 
 async function cargarTabla(k) {
   const rows = await supaFetch(TABLA[k]);
   DB[k] = Array.isArray(rows) ? rows : [];
+}
+
+/* ── Carga paginada desde Supabase (usa range header) ── */
+const PAG = { clientes:{p:0,lim:10}, prestamos:{p:0,lim:10}, cuotas:{p:0,lim:50} };
+
+async function cargarPagina(k, pagina, limite) {
+  pagina = pagina || 0;
+  limite = limite || PAG[k].lim;
+  var from = pagina * limite;
+  var to   = from + limite - 1;
+  // Supabase REST usa Content-Range; filtramos con Range query param
+  var filters = 'limit=' + limite + '&offset=' + from + '&order=id';
+  const rows = await supaFetch(TABLA[k], { filters: filters });
+  return Array.isArray(rows) ? rows : [];
+}
+
+/* ── Top progress bar ── */
+var _progTimer = null;
+function progStart() {
+  var f = document.getElementById('top-progress-fill');
+  if (!f) return;
+  clearTimeout(_progTimer);
+  f.style.transition = 'width 2s ease';
+  f.style.width = '70%';
+}
+function progDone() {
+  var f = document.getElementById('top-progress-fill');
+  if (!f) return;
+  f.style.transition = 'width .25s ease';
+  f.style.width = '100%';
+  _progTimer = setTimeout(function() {
+    f.style.transition = 'none';
+    f.style.width = '0%';
+  }, 350);
+}
+function progError() {
+  var f = document.getElementById('top-progress-fill');
+  if (!f) return;
+  f.style.background = 'var(--red)';
+  f.style.width = '100%';
+  setTimeout(function() { f.style.width='0%'; f.style.background=''; }, 800);
 }
 
 async function supaInsert(k, row) {
@@ -926,22 +1070,22 @@ async function arrancarApp() {
   appArrancada = true;
   mostrarApp();
   mostrarLoading('Cargando clientes…');
+  progStart();
   try {
     await cargarTabla('clientes');
     mostrarLoading('Cargando préstamos…');
     await cargarTabla('prestamos');
     mostrarLoading('Cargando cuotas…');
     await cargarTabla('cuotas');
-    // Cargar logs históricos de Supabase
     mostrarLoading('Cargando auditoría…');
     try {
       const logRows = await supaFetch(TABLA.logs, { filters: 'order=creado_en.desc&limit=200' });
       DB.logs = Array.isArray(logRows) ? logRows : [];
-      // Poblar LOGS_MEM con historial de Supabase (convertir formato)
       LOGS_MEM = DB.logs.map(function(l) {
         return { id:l.id, accion:l.accion, detalles:l.detalles||'', tipo:l.tipo, usuario:l.usuario, creado_en:l.creado_en };
       });
     } catch(e) { console.warn('Logs: ' + e.message); }
+    progDone();
     ocultarLoading();
     aplicarTemaGuardado();
     showPage('dashboard');
@@ -949,7 +1093,11 @@ async function arrancarApp() {
     var s = await sb.auth.getSession();
     if (s.data && s.data.session)
       registrarLog('Inicio de sesión', s.data.session.user.email, 'login');
+    // PWA: solicitar permiso notificaciones y chequear cobros hoy
+    initPWA();
+    setTimeout(notificarCobrosHoy, 3000);
   } catch(err) {
+    progError();
     console.error('arrancarApp:', err);
     mostrarLoading('⚠ Error de conexión. Recarga la página.');
     setTimeout(ocultarLoading, 4000);
@@ -958,20 +1106,49 @@ async function arrancarApp() {
 
 /* ══════════════════════════════════════════
    7. LÓGICA DE NEGOCIO
+   redondearBancario: Round Half to Even (Banker's Rounding)
+   Elimina el sesgo acumulado en series de cuotas.
+   Ej: 2.5 → 2 (par más cercano), 3.5 → 4
 ══════════════════════════════════════════ */
+function redondearBancario(num, decimales) {
+  decimales = decimales === undefined ? 2 : decimales;
+  var factor = Math.pow(10, decimales);
+  var shifted = num * factor;
+  var floor_  = Math.floor(shifted);
+  var diff    = shifted - floor_;
+  var rounded;
+  if (Math.abs(diff - 0.5) < 1e-10) {
+    // Exactamente en el medio → redondear al par más cercano
+    rounded = (floor_ % 2 === 0) ? floor_ : floor_ + 1;
+  } else {
+    rounded = Math.round(shifted);
+  }
+  return rounded / factor;
+}
+
 function diasPorModalidad(m) { return { diario:1, semanal:7, quincenal:15, mensual:30 }[m] || 15; }
-function calcularCuota(i, t, n) { return Math.round(i * (1+t) / n * 100) / 100; }
-function calcularTotal(i, t)    { return Math.round(i * (1+t) * 100) / 100; }
+
+function calcularCuota(importe, tasa, n) {
+  // Total con interés dividido entre cuotas, redondeado al centavo con Banker's Rounding
+  return redondearBancario(importe * (1 + tasa) / n, 2);
+}
+
+function calcularTotal(importe, tasa) {
+  return redondearBancario(importe * (1 + tasa), 2);
+}
 
 function generarCuotas(p) {
   var cuotas = [], dias = diasPorModalidad(p.modalidad);
   var cuota  = calcularCuota(p.importe, p.tasa, p.numCuotas);
   var total  = calcularTotal(p.importe, p.tasa);
   var inicio = new Date(p.fecha + 'T12:00:00');
+  // Acumular con Banker's Rounding para que la última cuota absorba el residuo exacto
+  var acumulado = 0;
   for (var i = 0; i < p.numCuotas; i++) {
     var fv = new Date(inicio); fv.setDate(fv.getDate() + dias * (i+1));
     var esU = (i === p.numCuotas - 1);
-    var val = esU ? Math.round((total - cuota * i) * 100) / 100 : cuota;
+    var val = esU ? redondearBancario(total - acumulado, 2) : cuota;
+    acumulado = redondearBancario(acumulado + cuota, 2);
     cuotas.push({
       id:'', prestamoId:p.id, clienteId:p.clienteId,
       num:i, label:'Cuota ' + (i+1), valor:val,
@@ -1175,12 +1352,18 @@ function renderCharts(prestamos, cuotas) {
 ══════════════════════════════════════════ */
 function renderClientes(q) {
   q = q || '';
-  var lista = dbGet('clientes');
+  var todos = dbGet('clientes');
+  var lista = todos;
   if (q) lista = lista.filter(function(c){ return c.nombre.toLowerCase().indexOf(q.toLowerCase())>=0 || c.codigo.toLowerCase().indexOf(q.toLowerCase())>=0; });
   var prest = dbGet('prestamos');
   var tbody = document.getElementById('clientes-tbody');
   if (!lista.length) { tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><p>No hay clientes</p></div></td></tr>'; return; }
-  tbody.innerHTML = lista.map(function(c){
+
+  // Paginación
+  _pagState.clientes.pag = Math.min(_pagState.clientes.pag, Math.max(0, Math.ceil(lista.length/_pagState.clientes.lim)-1));
+  var pagina = getPaginaSlice('clientes', lista);
+
+  tbody.innerHTML = pagina.map(function(c){
     var nP = prest.filter(function(p){ return p.clienteId === c.id; }).length;
     return '<tr>' +
       '<td><span class="mono" style="font-size:12px;color:var(--text3)">' + c.codigo + '</span></td>' +
@@ -1194,6 +1377,10 @@ function renderClientes(q) {
         '<button class="btn btn-sm btn-danger" onclick="eliminarCliente(\'' + c.id + '\')">Eliminar</button>' +
       '</td></tr>';
   }).join('');
+
+  // Renderizar paginación debajo del table-wrap
+  var wrap = document.querySelector('#page-clientes .table-wrap');
+  if (wrap) renderPaginacion('clientes', wrap.parentElement, renderClientes);
 }
 
 function abrirModalCliente(id) {
@@ -1276,7 +1463,12 @@ function renderPrestamos() {
   if (prestamoFilter !== 'todos') lista = lista.filter(function(p){ return getEstadoPrestamo(p.id) === prestamoFilter; });
   var tbody = document.getElementById('prestamos-tbody');
   if (!lista.length) { tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state"><p>Sin préstamos</p></div></td></tr>'; return; }
-  tbody.innerHTML = lista.map(function(p){
+
+  // Paginación
+  _pagState.prestamos.pag = Math.min(_pagState.prestamos.pag, Math.max(0, Math.ceil(lista.length/_pagState.prestamos.lim)-1));
+  var pagina = getPaginaSlice('prestamos', lista);
+
+  tbody.innerHTML = pagina.map(function(p){
     var cl    = clientes.find(function(c){ return c.id === p.clienteId; });
     var res   = getResumen(p.id);
     var total = calcularTotal(p.importe, p.tasa);
@@ -1298,6 +1490,10 @@ function renderPrestamos() {
         (est !== 'finalizado' ? '<button class="btn btn-sm btn-danger" onclick="eliminarPrestamo(\'' + p.id + '\')">✕</button>' : '') +
       '</td></tr>';
   }).join('');
+
+  // Paginación debajo de la tabla
+  var wrap = document.querySelector('#page-prestamos .table-wrap');
+  if (wrap) renderPaginacion('prestamos', wrap.parentElement, renderPrestamos);
 }
 
 async function eliminarPrestamo(id) {
@@ -1376,8 +1572,8 @@ function updateCalc() {
   for (var i = 0; i < n; i++) {
     var fv = new Date(fec + 'T12:00:00'); fv.setDate(fv.getDate() + dias * (i+1));
     var esU = (i === n-1);
-    var val = esU ? Math.round(saldo * 100)/100 : cuota;
-    saldo = Math.round((saldo - val) * 100) / 100;
+    var val = esU ? redondearBancario(saldo, 2) : cuota;
+    saldo = redondearBancario(saldo - (esU ? val : cuota), 2);
     plan.push({ num:i+1, fecha:fv.toISOString().split('T')[0], valor:val, saldo:saldo });
   }
   var th = 'padding:8px 10px;font-size:10px;color:var(--text3);text-transform:uppercase;background:var(--surface2);border-bottom:1px solid var(--border)';
@@ -1452,7 +1648,7 @@ function renderCobros(q) {
     return a.fechaVence.localeCompare(b.fechaVence);
   });
   var tbody = document.getElementById('cobros-tbody');
-  if (!cuotas.length) { tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><p>No hay cuotas</p></div></td></tr>'; return; }
+  if (!cuotas.length) { tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state"><p>No hay cuotas</p></div></td></tr>'; return; }
   tbody.innerHTML = cuotas.map(function(c){
     var cl    = clientes.find(function(x){ return x.id === c.clienteId; });
     var mora  = getDiasMora(c.fechaVence);
@@ -1461,6 +1657,11 @@ function renderCobros(q) {
     var bM    = { pagado:'badge-green', mora:'badge-red', pendiente:'badge-amber' };
     var lM    = { pagado:'Pagado', mora:'En mora', pendiente:'Pendiente' };
     var esMora = (estR === 'mora');
+    var waBtn  = c.estado !== 'pagado'
+      ? '<button class="btn-wa" onclick="enviarWhatsApp(\'' + c.id + '\')" title="Recordatorio por WhatsApp">' +
+          '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.093.541 4.063 1.487 5.783L0 24l6.368-1.466A11.93 11.93 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.95 0-3.773-.497-5.36-1.37l-.38-.22-3.78.87.9-3.68-.25-.39A9.956 9.956 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>' +
+        '</button>'
+      : '<span style="color:var(--text3);font-size:11px">—</span>';
     return '<tr class="' + (esMora ? 'tr-mora' : '') + '">' +
       '<td style="font-size:12px;color:var(--text3)">' + c.label + '</td>' +
       '<td style="font-weight:500">' + (cl ? cl.nombre : '?') + '</td>' +
@@ -1471,6 +1672,7 @@ function renderCobros(q) {
       '<td class="mono" style="color:' + (sal>0?'var(--amber)':'var(--green)') + '">' + formatCOP(sal) + '</td>' +
       '<td><span class="badge ' + bM[estR] + '">' + lM[estR] + '</span></td>' +
       '<td style="font-size:12px;color:' + (mora>0?'var(--red)':'var(--text3)') + ';font-weight:' + (mora>0?'600':'400') + '">' + (mora>0?'⚠ '+mora+' días':'—') + '</td>' +
+      '<td>' + waBtn + '</td>' +
       '<td>' + (c.estado !== 'pagado' ?
         '<button class="btn btn-sm btn-success" onclick="abrirModalPago(\'' + c.id + '\')">Cobrar</button>' :
         '<span class="txt-muted">' + formatDate(c.fechaPago||'') + '</span>') +
@@ -1733,10 +1935,16 @@ function buscarCliente(q) {
           '<div class="ec-total-label">Saldo Total Adeudado</div>' +
           '<div class="ec-total-val">' + formatCOP(tsaldo) + '</div>' +
         '</div>' +
-        '<button class="ec-print-btn" onclick="imprimirEstadoCuenta(\'' + cl.id + '\')">' +
-          '<svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M5 8V4h10v4M5 16H4a2 2 0 01-2-2v-4a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2h-1M5 12h10v4H5v-4z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
-          'Imprimir Estado de Cuenta' +
-        '</button>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+          '<button class="ec-print-btn" style="background:var(--green)" onclick="generarPDFEstadoCuenta(\'' + cl.id + '\')">' +
+            '<svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M4 4v12h12V8l-4-4H4z" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/><path d="M12 4v4h4M7 12h6M7 14h4" stroke="#fff" stroke-width="1.3" stroke-linecap="round"/></svg>' +
+            'Descargar PDF' +
+          '</button>' +
+          '<button class="ec-print-btn" onclick="imprimirEstadoCuenta(\'' + cl.id + '\')">' +
+            '<svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M5 8V4h10v4M5 16H4a2 2 0 01-2-2v-4a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2h-1M5 12h10v4H5v-4z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+            'Imprimir' +
+          '</button>' +
+        '</div>' +
       '</div>' +
 
     '</div>';
@@ -1935,6 +2143,359 @@ function exportCSV(tipo) {
   a.download = nombre; a.click();
   toast('Descargando ' + nombre, 's');
   registrarLog('Exportación CSV: ' + tipo, '', 'sistema');
+}
+
+/* ══════════════════════════════════════════
+   WHATSAPP — Recordatorio de cuota
+══════════════════════════════════════════ */
+function enviarWhatsApp(cuotaId) {
+  var c  = dbGet('cuotas').find(function(x){ return x.id === cuotaId; });
+  if (!c) return;
+  var cl = dbGet('clientes').find(function(x){ return x.id === c.clienteId; });
+  if (!cl || !cl.telefono) {
+    toast('Este cliente no tiene teléfono registrado', 'e');
+    return;
+  }
+  var nombre    = cl.nombre.split(' ')[0];          // primer nombre
+  var valor     = formatCOP(Math.max(0, c.valor - (c.pagado||0)));
+  var vence     = formatDate(c.fechaVence);
+  var mora      = getDiasMora(c.fechaVence);
+  var moraTexto = mora > 0 ? ' ⚠️ Lleva ' + mora + ' día(s) de mora.' : '';
+
+  var msg = '🏦 *Inversiones GSG*\n\n' +
+    'Hola *' + nombre + '*, te recordamos que tu *' + c.label + '* ' +
+    'por valor de *' + valor + '* vence el *' + vence + '*.' +
+    moraTexto + '\n\nPor favor comunícate con nosotros para coordinar tu pago. ✅';
+
+  // Limpiar teléfono: quitar espacios, guiones, paréntesis; agregar código Colombia si falta
+  var tel = cl.telefono.replace(/[\s\-()]/g, '');
+  if (!tel.startsWith('+') && !tel.startsWith('57')) tel = '57' + tel;
+  tel = tel.replace('+', '');
+
+  var url = 'https://wa.me/' + tel + '?text=' + encodeURIComponent(msg);
+  window.open(url, '_blank');
+}
+
+/* ══════════════════════════════════════════
+   PWA — Service Worker + Instalación + Push
+══════════════════════════════════════════ */
+var _deferredInstallPrompt = null;
+
+function initPWA() {
+  // Registrar Service Worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./service-worker.js')
+      .then(function(reg) {
+        console.log('[PWA] SW registrado — scope:', reg.scope);
+        // Escuchar mensajes del SW (navegación desde notificación)
+        navigator.serviceWorker.addEventListener('message', function(e) {
+          if (e.data && e.data.type === 'NAVIGATE') showPage(e.data.page);
+        });
+      })
+      .catch(function(err) { console.warn('[PWA] SW error:', err); });
+  }
+
+  // Solicitar permiso de notificaciones (sin ser intrusivo)
+  if ('Notification' in window && Notification.permission === 'default') {
+    setTimeout(function() {
+      Notification.requestPermission().then(function(perm) {
+        if (perm === 'granted') {
+          toast('Notificaciones activadas ✓', 's');
+          notificarCobrosHoy();
+        }
+      });
+    }, 5000);
+  }
+
+  // Escuchar evento de instalabilidad PWA
+  window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    _deferredInstallPrompt = e;
+    var banner = document.getElementById('pwa-banner');
+    // Solo mostrar si el usuario no lo descartó antes
+    if (banner && !localStorage.getItem('gsg-pwa-dismissed')) {
+      setTimeout(function() { banner.classList.add('visible'); }, 8000);
+    }
+  });
+
+  window.addEventListener('appinstalled', function() {
+    _deferredInstallPrompt = null;
+    cerrarBannerPWA();
+    toast('¡App instalada correctamente!', 's');
+    registrarLog('App instalada como PWA', '', 'sistema');
+  });
+}
+
+async function instalarPWA() {
+  if (!_deferredInstallPrompt) {
+    toast('Para instalar: menú del navegador → "Instalar app"', 'i');
+    return;
+  }
+  _deferredInstallPrompt.prompt();
+  var result = await _deferredInstallPrompt.userChoice;
+  if (result.outcome === 'accepted') {
+    cerrarBannerPWA();
+  }
+  _deferredInstallPrompt = null;
+}
+
+function cerrarBannerPWA() {
+  var banner = document.getElementById('pwa-banner');
+  if (banner) banner.classList.remove('visible');
+  localStorage.setItem('gsg-pwa-dismissed', '1');
+}
+
+function notificarCobrosHoy() {
+  // Enviar datos al SW para que muestre la notificación
+  if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
+  if (Notification.permission !== 'granted') return;
+  var hoy = new Date().toISOString().split('T')[0];
+  var vencenHoy = dbGet('cuotas').filter(function(c) {
+    return c.estado !== 'pagado' && c.fechaVence === hoy;
+  });
+  if (!vencenHoy.length) return;
+  navigator.serviceWorker.controller.postMessage({
+    type    : 'CHECK_COBROS_HOY',
+    cuotas  : vencenHoy,
+    clientes: dbGet('clientes')
+  });
+}
+
+/* ══════════════════════════════════════════
+   PAGINACIÓN — Clientes y Préstamos
+══════════════════════════════════════════ */
+var _pagState = {
+  clientes : { pag:0, lim:10, total:0 },
+  prestamos: { pag:0, lim:10, total:0 }
+};
+
+function renderPaginacion(key, containerId, renderFn) {
+  var st     = _pagState[key];
+  var total  = (key === 'clientes' ? dbGet('clientes') : dbGet('prestamos')).length;
+  var totalPags = Math.max(1, Math.ceil(total / st.lim));
+  st.total   = total;
+  var desde  = st.pag * st.lim + 1;
+  var hasta  = Math.min(desde + st.lim - 1, total);
+
+  var existing = document.getElementById(containerId);
+  if (!existing) return;
+
+  // Quitar paginación anterior si existe
+  var prev = document.getElementById('pag-' + key);
+  if (prev) prev.remove();
+
+  if (total <= st.lim) return; // No necesita paginación
+
+  var div = document.createElement('div');
+  div.id  = 'pag-' + key;
+  div.className = 'pagination';
+  div.innerHTML =
+    '<span class="pagination-info">Mostrando ' + desde + '–' + hasta + ' de ' + total + '</span>' +
+    '<div class="pagination-btns">' +
+      '<button class="pag-btn" onclick="cambiarPagina(\'' + key + '\',' + (st.pag-1) + ')" ' + (st.pag===0?'disabled':'') + '>' +
+        '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Anterior' +
+      '</button>' +
+      Array.from({length:totalPags}, function(_,i){
+        return '<button class="pag-btn' + (i===st.pag?' active':'') + '" onclick="cambiarPagina(\'' + key + '\',' + i + ')">' + (i+1) + '</button>';
+      }).join('') +
+      '<button class="pag-btn" onclick="cambiarPagina(\'' + key + '\',' + (st.pag+1) + ')" ' + (st.pag>=totalPags-1?'disabled':'') + '>' +
+        'Siguiente<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+      '</button>' +
+    '</div>';
+
+  existing.appendChild(div);
+}
+
+function cambiarPagina(key, nuevaPag) {
+  var total = (key === 'clientes' ? dbGet('clientes') : dbGet('prestamos')).length;
+  var totalPags = Math.max(1, Math.ceil(total / _pagState[key].lim));
+  if (nuevaPag < 0 || nuevaPag >= totalPags) return;
+  _pagState[key].pag = nuevaPag;
+  if (key === 'clientes')  renderClientes(document.getElementById('cliente-search').value || '');
+  if (key === 'prestamos') renderPrestamos();
+}
+
+/* ── Filtrar con paginación ── */
+function getPaginaSlice(key, arr) {
+  var st = _pagState[key];
+  var desde = st.pag * st.lim;
+  return arr.slice(desde, desde + st.lim);
+}
+
+/* ══════════════════════════════════════════
+   PDF — Estado de Cuenta con jsPDF
+   Genera PDF profesional con logo, tabla y totales
+══════════════════════════════════════════ */
+function generarPDFEstadoCuenta(clienteId) {
+  if (typeof window.jspdf === 'undefined') {
+    toast('Librería PDF no disponible. Usa el botón "Imprimir" en su lugar.', 'e');
+    return;
+  }
+
+  var cl = dbGet('clientes').find(function(c){ return c.id === clienteId; });
+  if (!cl) { toast('Cliente no encontrado', 'e'); return; }
+
+  var { jsPDF } = window.jspdf;
+  var doc   = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  var W     = doc.internal.pageSize.getWidth();
+  var prest = dbGet('prestamos').filter(function(p){ return p.clienteId === clienteId; });
+  var cuotas= dbGet('cuotas').filter(function(c){ return c.clienteId === clienteId; });
+  var hoy   = new Date().toLocaleDateString('es-CO',{ day:'2-digit', month:'long', year:'numeric' });
+  var folio = 'EC-' + Date.now().toString(36).toUpperCase().slice(-8);
+
+  /* ── Encabezado ── */
+  // Fondo azul header
+  doc.setFillColor(26, 86, 219);
+  doc.roundedRect(14, 10, W - 28, 28, 3, 3, 'F');
+
+  // Logo SVG simulado con texto estilizado
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('INVERSIONES GSG', 20, 21);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Estado de Cuenta del Cliente', 20, 27);
+  doc.text('Folio: ' + folio, 20, 33);
+
+  // Fecha lado derecho del header
+  doc.setFontSize(8);
+  doc.text('Emitido: ' + hoy, W - 16, 27, { align: 'right' });
+
+  /* ── Datos del cliente ── */
+  doc.setTextColor(30, 30, 30);
+  doc.setFillColor(241, 245, 249);
+  doc.roundedRect(14, 42, W - 28, 22, 2, 2, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text(cl.nombre, 19, 50);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  var infoCliente = 'Código: ' + cl.codigo;
+  if (cl.cedula)   infoCliente += '  ·  Cédula: ' + cl.cedula;
+  if (cl.telefono) infoCliente += '  ·  Tel: '    + cl.telefono;
+  if (cl.domicilio)infoCliente += '  ·  Dir: '    + cl.domicilio;
+  doc.text(infoCliente, 19, 57);
+
+  /* ── Métricas resumen ── */
+  var tprest = prest.reduce(function(s,p){ return s+p.importe; }, 0);
+  var tpag   = cuotas.reduce(function(s,c){ return s+(c.pagado||0); }, 0);
+  var tsal   = cuotas.reduce(function(s,c){ return s+Math.max(0,c.valor-(c.pagado||0)); }, 0);
+  var activos= prest.filter(function(p){ var e=getEstadoPrestamo(p.id); return e==='activo'||e==='mora'; }).length;
+
+  var cols3 = [
+    { lbl:'Capital prestado',  val:formatCOP(tprest), color:[7,89,133] },
+    { lbl:'Total pagado',      val:formatCOP(tpag),   color:[10,102,64] },
+    { lbl:'Saldo adeudado',    val:formatCOP(tsal),   color:[155,28,28] },
+    { lbl:'Préstamos activos', val:String(activos),   color:[26,86,219] }
+  ];
+  var mW = (W - 28) / 4;
+  cols3.forEach(function(m, i) {
+    var x = 14 + i * mW;
+    doc.setFillColor(248, 250, 252);
+    doc.rect(x, 68, mW, 16, 'F');
+    doc.setDrawColor(210, 220, 230);
+    doc.rect(x, 68, mW, 16);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(100, 116, 139);
+    doc.text(m.lbl.toUpperCase(), x + mW/2, 73, { align:'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(m.color[0], m.color[1], m.color[2]);
+    doc.text(m.val, x + mW/2, 80, { align:'center' });
+  });
+
+  /* ── Tabla de cuotas con autoTable ── */
+  var prestActivos = prest.filter(function(p){ var e=getEstadoPrestamo(p.id); return e==='activo'||e==='mora'; });
+
+  var bodyRows = [];
+  prestActivos.forEach(function(p) {
+    var res = getResumen(p.id);
+    // Fila encabezado de préstamo (grupo)
+    bodyRows.push([{
+      content: 'PRÉSTAMO #' + p.id.replace('P_','') + '  ·  ' +
+               p.modalidad.charAt(0).toUpperCase()+p.modalidad.slice(1) + '  ·  Tasa ' + Math.round(p.tasa*100) + '%  ·  ' +
+               p.numCuotas + ' cuotas  ·  Saldo: ' + formatCOP(res.saldo),
+      colSpan: 6,
+      styles: { fillColor:[26,86,219], textColor:[255,255,255], fontStyle:'bold', fontSize:8 }
+    }]);
+
+    var cuotasP = cuotas.filter(function(c){ return c.prestamoId===p.id; })
+                        .sort(function(a,b){ return a.num-b.num; });
+    cuotasP.forEach(function(c) {
+      var mora  = getDiasMora(c.fechaVence);
+      var sal   = Math.max(0, c.valor - (c.pagado||0));
+      var esMora= c.estado!=='pagado' && mora>0;
+      bodyRows.push([
+        c.label,
+        formatDate(c.fechaVence) + (mora>0?' ⚠':''),
+        formatCOP(c.valor),
+        formatCOP(c.pagado||0),
+        formatCOP(sal),
+        c.estado==='pagado' ? 'Pagado' : (esMora ? 'Mora '+mora+'d' : 'Pendiente')
+      ]);
+    });
+  });
+
+  doc.autoTable({
+    startY     : 89,
+    head       : [['Cuota','Vence','Valor','Abonado','Saldo','Estado']],
+    body       : bodyRows,
+    theme      : 'grid',
+    styles     : { fontSize:8, cellPadding:2.5, font:'helvetica' },
+    headStyles : { fillColor:[241,245,249], textColor:[100,116,139], fontStyle:'bold', fontSize:7.5 },
+    columnStyles: {
+      0: { cellWidth:22 },
+      1: { cellWidth:28 },
+      2: { cellWidth:28, halign:'right' },
+      3: { cellWidth:28, halign:'right' },
+      4: { cellWidth:28, halign:'right', fontStyle:'bold' },
+      5: { cellWidth:22, halign:'center' }
+    },
+    didParseCell: function(data) {
+      if (data.row.raw && data.row.raw[5] === 'Mora ' || (typeof data.row.raw[5]==='string' && data.row.raw[5].includes('Mora'))) {
+        data.cell.styles.textColor = [155, 28, 28];
+      }
+      if (data.row.raw && data.row.raw[5] === 'Pagado') {
+        data.cell.styles.textColor = [10, 102, 64];
+      }
+    },
+    margin: { left:14, right:14 }
+  });
+
+  /* ── Total general ── */
+  var finalY = doc.lastAutoTable.finalY + 6;
+  doc.setFillColor(254, 226, 226);
+  doc.roundedRect(14, finalY, W-28, 14, 2, 2, 'F');
+  doc.setDrawColor(155, 28, 28);
+  doc.roundedRect(14, finalY, W-28, 14, 2, 2);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(155, 28, 28);
+  doc.text('SALDO TOTAL ADEUDADO:', 19, finalY + 9);
+  doc.setFontSize(13);
+  doc.text(formatCOP(tsal), W - 16, finalY + 9, { align:'right' });
+
+  /* ── Pie de página ── */
+  var pieY = finalY + 22;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(148, 163, 184);
+  doc.text(
+    'Inversiones GSG  ·  Estado de Cuenta generado el ' + hoy + '  ·  Folio ' + folio,
+    W / 2, pieY, { align:'center' }
+  );
+  doc.text(
+    'Este documento es informativo. Los saldos pueden variar según los pagos registrados en el sistema.',
+    W / 2, pieY + 4, { align:'center' }
+  );
+
+  /* ── Guardar ── */
+  var nombreArchivo = 'EstadoCuenta_' + cl.nombre.replace(/\s+/g,'_') + '_' + folio + '.pdf';
+  doc.save(nombreArchivo);
+  toast('PDF generado: ' + nombreArchivo, 's');
+  registrarLog('PDF Estado de Cuenta generado para ' + cl.nombre, folio, 'sistema');
 }
 
 /* ══════════════════════════════════════════
