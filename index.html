@@ -420,6 +420,31 @@ tbody tr.tr-mora:hover td{background:rgba(155,28,28,.08)}
 .pag-btn:disabled{opacity:.4;cursor:not-allowed}
 .pag-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 
+/* ══ SW UPDATE BANNER ══ */
+#sw-update-banner{
+  display:none;position:fixed;bottom:0;left:0;right:0;z-index:9995;
+  background:var(--accent);color:#fff;
+  padding:.75rem 1.25rem;
+  align-items:center;justify-content:space-between;gap:12px;
+  box-shadow:0 -4px 16px rgba(0,0,0,.2);
+}
+#sw-update-banner.visible{display:flex}
+.sw-update-text{font-size:13px;font-weight:500}
+.sw-update-text strong{font-weight:700}
+.sw-update-actions{display:flex;gap:8px;flex-shrink:0}
+.sw-btn-reload{
+  padding:6px 16px;border-radius:6px;border:2px solid #fff;
+  background:#fff;color:var(--accent);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;
+  transition:var(--tr);
+}
+.sw-btn-reload:hover{background:transparent;color:#fff}
+.sw-btn-dismiss{
+  padding:6px 12px;border-radius:6px;border:1px solid rgba(255,255,255,.5);
+  background:transparent;color:#fff;font-family:var(--font);font-size:12px;cursor:pointer;
+  transition:var(--tr);
+}
+.sw-btn-dismiss:hover{background:rgba(255,255,255,.15)}
+
 /* ══ PWA INSTALL BANNER ══ */
 #pwa-banner{
   display:none;position:fixed;bottom:1.5rem;left:1.5rem;z-index:9990;
@@ -496,6 +521,17 @@ tbody tr.tr-mora:hover td{background:rgba(155,28,28,.08)}
       Entrar con Google
     </button>
     <div class="login-note">🔒 Acceso restringido · Solo usuarios autorizados</div>
+  </div>
+</div>
+
+<!-- ═══════ SW UPDATE BANNER ═══════ -->
+<div id="sw-update-banner">
+  <div class="sw-update-text">
+    🚀 <strong>Nueva versión disponible.</strong> Recarga para ver los últimos cambios.
+  </div>
+  <div class="sw-update-actions">
+    <button class="sw-btn-reload" onclick="recargarConNuevaVersion()">Recargar ahora</button>
+    <button class="sw-btn-dismiss" onclick="document.getElementById('sw-update-banner').classList.remove('visible')">Después</button>
   </div>
 </div>
 
@@ -2324,25 +2360,55 @@ function enviarWhatsApp(cuotaId) {
    PWA — Service Worker + Instalación + Push
 ══════════════════════════════════════════ */
 var _deferredInstallPrompt = null;
+var _swEsperando           = null;   // referencia al SW nuevo instalado
 
 function initPWA() {
-  // Registrar Service Worker
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./service-worker.js')
-      .then(function(reg) {
-        console.log('[PWA] SW registrado — scope:', reg.scope);
-        // Escuchar mensajes del SW (navegación desde notificación)
-        navigator.serviceWorker.addEventListener('message', function(e) {
-          if (e.data && e.data.type === 'NAVIGATE') showPage(e.data.page);
-        });
-      })
-      .catch(function(err) { console.warn('[PWA] SW error:', err); });
-  }
+  if (!('serviceWorker' in navigator)) return;
 
-  // Solicitar permiso de notificaciones (sin ser intrusivo)
+  navigator.serviceWorker.register('./service-worker.js')
+    .then(function (reg) {
+      console.log('[PWA] SW registrado — scope:', reg.scope);
+
+      /* ── Si ya hay un SW nuevo esperando al registrar ── */
+      if (reg.waiting) {
+        _swEsperando = reg.waiting;
+        mostrarBannerActualizacion();
+      }
+
+      /* ── Detectar instalación de nuevo SW ── */
+      reg.addEventListener('updatefound', function () {
+        var nuevoSW = reg.installing;
+        if (!nuevoSW) return;
+        nuevoSW.addEventListener('statechange', function () {
+          if (nuevoSW.state === 'installed' && navigator.serviceWorker.controller) {
+            /* Hay versión nueva instalada; el usuario sigue viendo la vieja */
+            _swEsperando = nuevoSW;
+            mostrarBannerActualizacion();
+          }
+        });
+      });
+
+      /* ── Escuchar mensajes del SW ── */
+      navigator.serviceWorker.addEventListener('message', function (e) {
+        if (!e.data) return;
+        if (e.data.type === 'NAVIGATE')   showPage(e.data.page);
+        if (e.data.type === 'SW_UPDATED') mostrarBannerActualizacion();
+      });
+
+      /* ── Cuando el nuevo SW toma el control → recargar ── */
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        window.location.reload();
+      });
+
+      /* ── Verificar actualizaciones cada 30 minutos ── */
+      setInterval(function () { reg.update(); }, 30 * 60 * 1000);
+    })
+    .catch(function (err) { console.warn('[PWA] SW error:', err); });
+
+  /* ── Solicitar permiso de notificaciones ── */
   if ('Notification' in window && Notification.permission === 'default') {
-    setTimeout(function() {
-      Notification.requestPermission().then(function(perm) {
+    setTimeout(function () {
+      Notification.requestPermission().then(function (perm) {
         if (perm === 'granted') {
           toast('Notificaciones activadas ✓', 's');
           notificarCobrosHoy();
@@ -2351,23 +2417,36 @@ function initPWA() {
     }, 5000);
   }
 
-  // Escuchar evento de instalabilidad PWA
-  window.addEventListener('beforeinstallprompt', function(e) {
+  /* ── Evento de instalabilidad PWA ── */
+  window.addEventListener('beforeinstallprompt', function (e) {
     e.preventDefault();
     _deferredInstallPrompt = e;
     var banner = document.getElementById('pwa-banner');
-    // Solo mostrar si el usuario no lo descartó antes
     if (banner && !localStorage.getItem('gsg-pwa-dismissed')) {
-      setTimeout(function() { banner.classList.add('visible'); }, 8000);
+      setTimeout(function () { banner.classList.add('visible'); }, 8000);
     }
   });
 
-  window.addEventListener('appinstalled', function() {
+  window.addEventListener('appinstalled', function () {
     _deferredInstallPrompt = null;
     cerrarBannerPWA();
     toast('¡App instalada correctamente!', 's');
     registrarLog('App instalada como PWA', '', 'sistema');
   });
+}
+
+function mostrarBannerActualizacion() {
+  var banner = document.getElementById('sw-update-banner');
+  if (banner) banner.classList.add('visible');
+}
+
+function recargarConNuevaVersion() {
+  /* Decirle al SW nuevo que tome el control ya (skipWaiting) */
+  if (_swEsperando) {
+    _swEsperando.postMessage({ type: 'SKIP_WAITING' });
+  }
+  /* Fallback: si controllerchange no llega en 1.5s, recargar igual */
+  setTimeout(function () { window.location.reload(); }, 1500);
 }
 
 async function instalarPWA() {
