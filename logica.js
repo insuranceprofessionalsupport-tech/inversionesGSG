@@ -152,7 +152,25 @@
     return { capitalTia: cap, pctTia: Math.min(100, Math.max(0, Number(txt))) / 100 };
   }
 
+  /* ── Auditoría: columnas reales de ca_logs (id uuid y created_at los pone la base) ── */
+  function filaDeLog(e) {
+    return { accion: e.accion, detalles: String(e.detalles == null ? '' : e.detalles), tipo_evento: e.tipo, usuario_email: e.usuario };
+  }
+  function logDeFila(f) {
+    var d = f.detalles;
+    return {
+      id: f.id,
+      accion: f.accion,
+      detalles: d == null ? '' : (typeof d === 'string' ? d : JSON.stringify(d)),
+      tipo: f.tipo_evento || 'sistema',
+      usuario: f.usuario_email,
+      creado_en: f.created_at
+    };
+  }
+
   var GSG = {
+    filaDeLog: filaDeLog,
+    logDeFila: logDeFila,
     escHTML: escHTML,
     filasActualizadas: filasActualizadas,
     diasEntre: diasEntre,

@@ -1145,7 +1145,7 @@ async function registrarLog(accion, detalles, tipo) {
 
   // 2. Persistir en Supabase (ca_logs) — fire-and-forget, nunca bloquea la UI
   try {
-    await supaFetch(TABLA.logs, { method:'POST', body: entrada });
+    await supaFetch(TABLA.logs, { method:'POST', body: GSG.filaDeLog(entrada) });
     // Actualizar cache de DB también
     DB.logs.unshift(entrada);
   } catch(e) {
@@ -1294,11 +1294,9 @@ async function arrancarApp() {
     try { await cargarTabla('config'); } catch(e) { console.warn('Config: ' + e.message); }
     mostrarLoading('Cargando auditoría…');
     try {
-      const logRows = await supaFetch(TABLA.logs, { filters: 'order=creado_en.desc&limit=200' });
-      DB.logs = Array.isArray(logRows) ? logRows : [];
-      LOGS_MEM = DB.logs.map(function(l) {
-        return { id:l.id, accion:l.accion, detalles:l.detalles||'', tipo:l.tipo, usuario:l.usuario, creado_en:l.creado_en };
-      });
+      const logRows = await supaFetch(TABLA.logs, { filters: 'order=created_at.desc&limit=200' });
+      DB.logs = (Array.isArray(logRows) ? logRows : []).map(GSG.logDeFila);
+      LOGS_MEM = DB.logs.slice();
     } catch(e) { console.warn('Logs: ' + e.message); }
     progDone();
     ocultarLoading();
