@@ -1,0 +1,39 @@
+name: Mantener Supabase activo
+
+# Supabase (plan gratis) pausa el proyecto tras 7 días sin actividad.
+# Este flujo llama a ping_keepalive() cada 2 días.
+on:
+  schedule:
+    - cron: '17 12 */2 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Llamar a Supabase
+        run: |
+          URL=$(grep -oE "SUPA_PROJECT *= *'[^']+'" index.html | sed -E "s/.*'([^']+)'/\1/")
+          KEY=$(grep -oE "SUPA_ANON *= *'[^']+'" index.html | sed -E "s/.*'([^']+)'/\1/")
+          curl -fsS -X POST "$URL/rest/v1/rpc/ping_keepalive" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            -H "Content-Type: application/json" -d '{}'
+          echo
+
+      # GitHub apaga los flujos programados de repos públicos tras 60 días sin cambios.
+      - name: Señal de actividad del repositorio (cada 45 días)
+        run: |
+          ULTIMO=$(git log -1 --format=%ct)
+          if [ $(( $(date +%s) - ULTIMO )) -gt 3888000 ]; then
+            date -u > .github/ultima-senal.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/ultima-senal.txt
+            git commit -m "Señal de actividad automática"
+            git push
+          fi
