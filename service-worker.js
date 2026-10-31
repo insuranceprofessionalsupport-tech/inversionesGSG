@@ -1,5 +1,5 @@
 /**
- * Inversiones GSG — Service Worker v2.2
+ * Inversiones GSG — Service Worker v3.0 (rediseño Claridad)
  *
  * REGLA DE ORO: cambia CACHE_VERSION con cada deploy para que
  * todos los usuarios vean la versión nueva en la próxima visita normal.
@@ -7,12 +7,13 @@
  * Estrategias:
  *   index.html    → Network-first  (siempre intenta red primero)
  *   CDN libs      → Cache-first    (no cambian entre versiones)
- *   Supabase REST → Network-only   (datos en tiempo real, nunca caché)
+ *   Supabase REST → sin intervenir   (el navegador va directo a la red; si falla,
+ *                    la app ve el error real y no da un pago por guardado)
  */
 'use strict';
 
-const CACHE_VERSION = 'gsg-v2.2';
-const CACHE_CDN     = 'gsg-cdn-v2.2';
+const CACHE_VERSION = 'gsg-v3.0';
+const CACHE_CDN     = 'gsg-cdn-v3.0';
 
 /* Librerías CDN que sí se cachean (no cambian entre versiones) */
 const CDN_URLS = [
@@ -94,18 +95,9 @@ self.addEventListener('fetch', function (event) {
   var isCDN      = CDN_URLS.some(function (u) { return event.request.url.startsWith(u.split('@')[0]); });
   var isFonts    = url.hostname.includes('fonts.g') || url.hostname.includes('fonts.g');
 
-  /* 1 ── Supabase: siempre red, nunca caché */
-  if (isSupabase) {
-    event.respondWith(
-      fetch(event.request).catch(function () {
-        return new Response(
-          JSON.stringify({ error: 'Sin conexión con Supabase.' }),
-          { headers: { 'Content-Type': 'application/json' } }
-        );
-      })
-    );
-    return;
-  }
+  /* 1 ── Supabase: no intervenir. Responder 200 con un error falso hacía que
+         la app diera por guardado un pago hecho sin conexión. */
+  if (isSupabase) return;
 
   /* 2 ── index.html: Network-first, caché solo offline */
   if (isHTML) {
@@ -218,7 +210,8 @@ self.addEventListener('notificationclick', function (event) {
 /* ══ VERIFICAR COBROS HOY (llamado por la app) ═══════ */
 function verificarCobrosHoy(cuotas, clientes) {
   if (!cuotas || !clientes) return;
-  var hoy        = new Date().toISOString().split('T')[0];
+  var d          = new Date();
+  var hoy        = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   var vencenHoy  = cuotas.filter(function (c) {
     return c.estado !== 'pagado' && c.fechaVence === hoy;
   });
