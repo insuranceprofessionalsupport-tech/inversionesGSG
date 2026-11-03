@@ -12,8 +12,8 @@
  */
 'use strict';
 
-const CACHE_VERSION = 'gsg-v3.0';
-const CACHE_CDN     = 'gsg-cdn-v3.0';
+const CACHE_VERSION = 'gsg-v3.2';
+const CACHE_CDN     = 'gsg-cdn-v3.2';
 
 /* Librerías CDN que sí se cachean (no cambian entre versiones) */
 const CDN_URLS = [

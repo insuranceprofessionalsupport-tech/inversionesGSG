@@ -28,11 +28,36 @@
     return Math.max(0, centavos(c.valor) - centavos(c.pagado));
   }
 
+  /* ── Mora con días de gracia ── */
+  /* Mora diaria por cuota = interés total del préstamo ÷ 30, en pesos enteros */
+  function moraDiaria(p) {
+    if (!p || !p.moraActiva) return 0;
+    /* Interés redondeado a centavos antes de dividir: evita que 0,57 × 100.000 dé 56.999,99… */
+    var interesCent = Math.round((Number(p.importe) || 0) * (Number(p.tasa) || 0) * 100);
+    return Math.max(0, Math.floor(interesCent / 3000));
+  }
+
+  /* Mora de una cuota a una fecha (YYYY-MM-DD). Dentro de la gracia no hay mora;
+     pasada la gracia se cuenta desde el día 1. Una cuota pagada no genera mora nueva. */
+  function moraCuota(p, c, fechaRef) {
+    var gracia = (p && p.moraGracia !== null && p.moraGracia !== undefined) ? Number(p.moraGracia) : 3;
+    var pagada = Number(c.moraPagada) || 0;
+    var dias = Math.max(0, diasEntre(String(c.fechaVence), String(fechaRef)));
+    var diaria = moraDiaria(p);
+    if (!diaria || saldoCentavos(c) === 0) return { dias: dias, gracia: gracia, diaria: diaria, enGracia: false, total: pagada, pagada: pagada, pendiente: 0 };
+    var total = dias > gracia ? dias * diaria : 0;
+    return { dias: dias, gracia: gracia, diaria: diaria, enGracia: dias > 0 && dias <= gracia, total: total, pagada: pagada, pendiente: Math.max(0, total - pagada) };
+  }
+
   /* Reparte un pago: primero la cuota elegida y el excedente a las demás
-     cuotas pendientes del préstamo, de la más antigua a la más nueva. */
-  function distribuirPago(cuotas, cuotaId, monto, fecha, obs) {
+     cuotas pendientes del préstamo, de la más antigua a la más nueva.
+     Con mora activa, en cada cuota se cubre primero su mora. */
+  function distribuirPago(cuotas, cuotaId, monto, fecha, obs, prestamo) {
+    var conMora = !!(prestamo && prestamo.moraActiva);
     var pendientes = cuotas.filter(function (c) { return saldoCentavos(c) > 0; });
-    var saldoTotal = pendientes.reduce(function (s, c) { return s + saldoCentavos(c); }, 0);
+    var moraDe = {};
+    pendientes.forEach(function (c) { moraDe[c.id] = conMora ? centavos(moraCuota(prestamo, c, fecha).pendiente) : 0; });
+    var saldoTotal = pendientes.reduce(function (s, c) { return s + saldoCentavos(c) + moraDe[c.id]; }, 0);
     var restante = centavos(monto);
     if (!(restante > 0) || restante > saldoTotal) return { ok: false, maximo: saldoTotal / 100 };
 
@@ -41,24 +66,20 @@
       .filter(function (c) { return c.id !== cuotaId; })
       .sort(function (a, b) { return String(a.fechaVence).localeCompare(String(b.fechaVence)); });
 
-    var cambios = [];
+    var cambios = [], moraTotal = 0;
     elegida.concat(resto).forEach(function (c) {
       if (restante <= 0) return;
-      var abono = Math.min(restante, saldoCentavos(c));
-      restante -= abono;
-      var pagado = centavos(c.pagado) + abono;
-      cambios.push({
-        id: c.id,
-        abono: abono / 100,
-        patch: {
-          pagado: pagado / 100,
-          estado: pagado >= centavos(c.valor) ? 'pagado' : 'pendiente',
-          fechaPago: fecha,
-          obs: obs
-        }
-      });
+      var aMora = Math.min(restante, moraDe[c.id]);
+      restante -= aMora;
+      var aCuota = Math.min(restante, saldoCentavos(c));
+      restante -= aCuota;
+      var pagado = centavos(c.pagado) + aCuota;
+      var patch = { pagado: pagado / 100, estado: pagado >= centavos(c.valor) ? 'pagado' : 'pendiente', fechaPago: fecha, obs: obs };
+      if (conMora) patch.moraPagada = (centavos(c.moraPagada) + aMora) / 100;
+      moraTotal += aMora;
+      cambios.push({ id: c.id, abono: (aMora + aCuota) / 100, abonoMora: aMora / 100, abonoCuota: aCuota / 100, patch: patch });
     });
-    return { ok: true, cambios: cambios, total: centavos(monto) / 100 };
+    return { ok: true, cambios: cambios, total: centavos(monto) / 100, moraTotal: moraTotal / 100 };
   }
 
   /* Aplica los cambios en orden; se detiene en el primer error. */
@@ -180,6 +201,8 @@
     hoyLocal: hoyLocal,
     parseMonto: parseMonto,
     distribuirPago: distribuirPago,
+    moraDiaria: moraDiaria,
+    moraCuota: moraCuota,
     aplicarCambios: aplicarCambios,
     origenPrestamo: origenPrestamo,
     repartoTia: repartoTia

@@ -18,7 +18,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <!-- Subir ?v= en cada publicación de logica.js para que el navegador no use la copia vieja -->
-<script src="logica.js?v=3.1"></script>
+<script src="logica.js?v=3.2"></script>
 <style>
 /* ══════════════════════════════════════════
    INVERSIONES GSG · Sistema visual "Claridad"
@@ -499,6 +499,15 @@ tr.fila-click{cursor:pointer}
 .check input{width:20px;height:20px;accent-color:var(--accent)}
 input:disabled{opacity:.6}
 
+/* ══ MORA ══ */
+.mora-linea{display:block;font-size:12px;font-weight:600;color:var(--mora)}
+.gracia-linea{display:block;font-size:12px;font-weight:600;color:var(--accent-d)}
+.card-ink .mora-linea{color:#FFB08A}
+.card-ink .gracia-linea{color:#A3AFFF}
+#pago-mora:not(:empty){margin-bottom:14px}
+.mora-preview{align-self:end;font-size:13px;color:var(--text2);padding-bottom:14px}
+.calc-mora-grupo{margin:16px 0 0;padding-top:14px;border-top:1px solid var(--border)}
+
 /* ══ RESPONSIVE: celular y tableta (< 900 px) ══ */
 @media (max-width:899px){
   #nav-lateral{display:none}
@@ -760,6 +769,13 @@ input:disabled{opacity:.6}
             <div class="form-group"><label for="calc-pct-tia">% del interés para ella</label><input type="number" inputmode="numeric" id="calc-pct-tia" min="0" max="100" step="1" disabled><label class="check"><input type="checkbox" id="calc-pct-general" checked onchange="alternarPctGeneral('calc')"> Usar el % general</label></div>
           </div>
         </div>
+        <div class="form-group calc-mora-grupo">
+          <label class="check" style="color:var(--text);font-weight:600"><input type="checkbox" id="calc-mora" checked onchange="updateCalc()"> Cobrar mora</label>
+          <div class="dos-campos" id="calc-mora-campos" style="margin-top:8px">
+            <div><label for="calc-mora-gracia">Días de gracia</label><input type="number" inputmode="numeric" id="calc-mora-gracia" min="0" max="30" value="3" oninput="updateCalc()"></div>
+            <p class="mora-preview" id="calc-mora-preview"></p>
+          </div>
+        </div>
       </div>
       <div class="calc-lado">
         <div class="card-ink calc-resumen">
@@ -890,6 +906,7 @@ input:disabled{opacity:.6}
     <div class="modal-title"><div><span id="pago-titulo">Registrar pago</span><div class="modal-sub" id="pago-sub"></div></div><button class="cerrar-x" onclick="cerrarHoja('modal-pago')" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <input type="hidden" id="pago-cuota-id">
     <div class="pago-resumen" id="pago-info"></div>
+    <div id="pago-mora" aria-live="polite"></div>
     <label for="pago-monto">¿Cuánto paga?</label>
     <div class="campo-monto"><span aria-hidden="true">$</span><input id="pago-monto" type="text" inputmode="decimal" autocomplete="off" oninput="alEscribirMonto(this)"></div>
     <div class="chips pago-atajos" role="group" aria-label="Montos rápidos">
@@ -899,7 +916,7 @@ input:disabled{opacity:.6}
     </div>
     <div id="pago-aviso" aria-live="polite"></div>
     <div class="dos-campos">
-      <div><label for="pago-fecha">Fecha</label><input type="date" id="pago-fecha" oninput="actualizarAvisoPago()"></div>
+      <div><label for="pago-fecha">Fecha</label><input type="date" id="pago-fecha" oninput="alCambiarFechaPago()"></div>
       <div><label for="pago-obs">Nota</label><input type="text" id="pago-obs" placeholder="Efectivo, Nequi…"></div>
     </div>
     <button class="btn btn-ink btn-lg btn-block" id="pago-boton" style="margin-top:16px" onclick="confirmarPago()">Registrar pago</button>
@@ -1479,7 +1496,7 @@ function fechaCorta(s) {
 function venceTexto(c) {
   var hoy = GSG.hoyLocal();
   if (c.fechaVence === hoy) return 'vence hoy';
-  if (c.fechaVence < hoy) { var d = getDiasMora(c.fechaVence); return d + (d === 1 ? ' día' : ' días') + ' de mora'; }
+  if (c.fechaVence < hoy) { var d = getDiasMora(c.fechaVence); return d + (d === 1 ? ' día' : ' días') + ' de atraso'; }
   return 'vence el ' + fechaCorta(c.fechaVence);
 }
 function pctTiaDefecto() {
@@ -1520,6 +1537,7 @@ function renderHoy() {
   var llevas = deHoy.reduce(function(s, c){ return s + Math.min(c.valor, c.pagado || 0); }, 0);
   var vencidas = dbGet('cuotas').filter(function(c){ return saldoCuota(c) > 0 && c.fechaVence < hoy; });
   var totVenc = vencidas.reduce(function(s, c){ return s + saldoCuota(c); }, 0);
+  var moraVenc = vencidas.reduce(function(s, c){ return s + moraDe(c).pendiente; }, 0);
   var lista = cuotasPorCobrar(7);
   var sig = lista[0], despues = lista.slice(1, 4);
 
@@ -1539,7 +1557,7 @@ function renderHoy() {
   }
   if (vencidas.length) {
     h += '<button class="aviso-mora" onclick="irACobros(\'mora\')">' + ICONO.alerta +
-      '<span><strong>' + vencidas.length + (vencidas.length === 1 ? ' cuota vencida' : ' cuotas vencidas') + '</strong> · ' + formatCOP(totVenc) + '</span>' + ICONO.flecha + '</button>';
+      '<span><strong>' + vencidas.length + (vencidas.length === 1 ? ' cuota vencida' : ' cuotas vencidas') + '</strong> · ' + formatCOP(totVenc) + (moraVenc ? ' + ' + formatCOP(moraVenc) + ' de mora' : '') + '</span>' + ICONO.flecha + '</button>';
   }
   if (sig) {
     var p = prestamoPorId(sig.prestamoId);
@@ -1547,7 +1565,7 @@ function renderHoy() {
       '<div class="siguiente-top"><div class="fila-info">' +
         '<span class="siguiente-label">' + (sig.fechaVence < hoy ? 'Cobro vencido' : 'Siguiente cobro') + '</span>' +
         '<span class="siguiente-nombre">' + esc(nombreCliente(sig.clienteId)) + '</span>' +
-        '<span class="sub">' + cuotaDeTexto(sig) + (p ? ' · ' + (MODALIDAD_TXT[p.modalidad] || p.modalidad) : '') + ' · ' + venceTexto(sig) + '</span>' +
+        '<span class="sub">' + cuotaDeTexto(sig) + (p ? ' · ' + (MODALIDAD_TXT[p.modalidad] || p.modalidad) : '') + ' · ' + venceTexto(sig) + '</span>' + moraLinea(sig) +
       '</div><span class="monto-l">' + formatCOP(saldoCuota(sig)) + '</span></div>' +
       barraAbono(sig) +
       '<div class="siguiente-acciones">' +
@@ -1560,7 +1578,7 @@ function renderHoy() {
       despues.map(function(c){
         return '<button class="fila fila-boton" onclick="abrirModalPago(\'' + c.id + '\')" aria-label="Registrar pago de ' + esc(nombreCliente(c.clienteId)) + '">' +
           '<div class="fila-top"><div class="fila-info"><span class="fila-nombre">' + esc(nombreCliente(c.clienteId)) + '</span>' +
-          '<span class="fila-meta' + (c.fechaVence < hoy ? ' mora' : '') + '">' + cuotaDeTexto(c) + ' · ' + venceTexto(c) + '</span></div>' +
+          '<span class="fila-meta' + (c.fechaVence < hoy ? ' mora' : '') + '">' + cuotaDeTexto(c) + ' · ' + venceTexto(c) + '</span>' + moraLinea(c) + '</div>' +
           '<span class="fila-monto">' + formatCOP(saldoCuota(c)) + '</span>' + ICONO.flecha + '</div>' + barraAbono(c) + '</button>';
       }).join('') + '</div>';
   }
@@ -1607,13 +1625,17 @@ function renderDashboard() {
     return '<div class="kpi ' + (clase || '') + '"><span class="kpi-label">' + label + '</span>' +
       '<span class="kpi-valor">' + val + '</span><span class="kpi-sub">' + sub + '</span></div>';
   }
+  var moraPend = cuotas.reduce(function(s, c){ return s + moraDe(c).pendiente; }, 0);
+  var moraCob  = cuotas.reduce(function(s, c){ return s + (Number(c.moraPagada) || 0); }, 0);
   document.getElementById('dash-stats').innerHTML = [
     kpi('En la calle',      formatCOP(sal),  'Saldo por cobrar', 'ink'),
     kpi('Interés ganado',   formatCOP(int_), 'Ganancia neta'),
     kpi('Total cobrado',    formatCOP(pag),  'Recaudado'),
     kpi('Capital prestado', formatCOP(cap),  filtrados.length + ' préstamos'),
     kpi('En mora',          String(mora),    mora === 1 ? 'Préstamo vencido' : 'Préstamos vencidos', mora ? 'mora' : ''),
-    kpi('Clientes',         String(clientes.length), 'Registrados')
+    kpi('Clientes',         String(clientes.length), 'Registrados'),
+    kpi('Mora por cobrar',  formatCOP(moraPend), 'Cuotas pasadas de la gracia', moraPend ? 'mora' : ''),
+    kpi('Mora cobrada',     formatCOP(moraCob),  'Total recibido por mora')
   ].join('');
 
   renderHoy();
@@ -2046,6 +2068,12 @@ function pintarDetallePrestamo(editarOrigen) {
       '</div></section>';
   }
 
+  // Mora del préstamo
+  var gr = (p.moraGracia !== null && p.moraGracia !== undefined) ? Number(p.moraGracia) : 3;
+  var puedeMora = p.moraActiva || (est !== 'finalizado' && GSG.moraDiaria(Object.assign({}, p, { moraActiva:true })) > 0);
+  h += '<div class="origen-linea"><span>Mora: <strong>' + (p.moraActiva ? formatCOP(GSG.moraDiaria(p)) + ' por día después de ' + gr + (gr === 1 ? ' día' : ' días') + ' de gracia' : 'No se cobra') + '</strong></span>' +
+    (puedeMora ? '<button class="btn-texto" onclick="cambiarMora(\'' + p.id + '\',' + (!p.moraActiva) + ')">' + (p.moraActiva ? 'Desactivar' : 'Activar') + '</button>' : '') + '</div>';
+
   // Plan de cuotas
   h += '<div class="seccion-titulo"><span>Plan de cuotas</span></div><div class="lista">' + cuotas.map(function(c){
     var e = estadoCuota(c), txt;
@@ -2056,12 +2084,12 @@ function pintarDetallePrestamo(editarOrigen) {
     else txt = 'Pendiente';
     if ((e === 'mora' || e === 'hoy') && c.pagado > 0) txt += ' · abonó ' + formatCOP(c.pagado);
     return '<div class="cuota-fila ' + e + '"><span class="cuota-num" aria-hidden="true">' + (e === 'pagada' ? ICONO.check : (c.num + 1)) + '</span>' +
-      '<div class="fila-info"><span class="cuota-fecha">Cuota ' + (c.num + 1) + ' · ' + fechaCorta(c.fechaVence) + '</span><span class="cuota-estado">' + txt + '</span></div>' +
+      '<div class="fila-info"><span class="cuota-fecha">Cuota ' + (c.num + 1) + ' · ' + fechaCorta(c.fechaVence) + '</span><span class="cuota-estado">' + txt + '</span>' + moraLinea(c) + '</div>' +
       '<span class="fila-monto">' + formatCOP(c.valor) + '</span></div>';
   }).join('') + '</div>';
 
   if (proxima) {
-    h += '<button class="btn btn-primary btn-lg btn-block" style="margin-top:16px" onclick="cerrarHoja(\'modal-cuotas\');abrirModalPago(\'' + proxima.id + '\')">Cobrar cuota ' + (proxima.num + 1) + ' · ' + formatCOP(saldoCuota(proxima)) + '</button>';
+    h += '<button class="btn btn-primary btn-lg btn-block" style="margin-top:16px" onclick="cerrarHoja(\'modal-cuotas\');abrirModalPago(\'' + proxima.id + '\')">Cobrar cuota ' + (proxima.num + 1) + ' · ' + formatCOP(totalCuota(proxima)) + '</button>';
   }
   if (est !== 'finalizado') {
     h += '<button class="btn-texto peligro" style="margin-top:12px" onclick="eliminarPrestamo(\'' + p.id + '\')">Eliminar préstamo</button>';
@@ -2074,6 +2102,20 @@ function alternarPctGeneral(pref) {
   if (!chk || !inp) return;
   inp.disabled = chk.checked;
   if (chk.checked) inp.value = Math.round(pctTiaDefecto() * 100);
+}
+
+async function cambiarMora(pid, activar) {
+  var p = prestamoPorId(pid); if (!p) return;
+  var gr = (p.moraGracia !== null && p.moraGracia !== undefined) ? Number(p.moraGracia) : 3;
+  var diaria = GSG.moraDiaria(Object.assign({}, p, { moraActiva:true }));
+  if (activar && !confirm('Se cobrará mora de ' + formatCOP(diaria) + ' por día a cada cuota de este préstamo con más de ' + gr + ' días de atraso, contando desde su primer día de atraso. ¿Activar?')) return;
+  try {
+    await supaUpdate('prestamos', pid, { moraActiva:!!activar, moraGracia:gr });
+    registrarLog((activar ? 'Mora activada: ' : 'Mora desactivada: ') + nombreCliente(p.clienteId), 'Préstamo ' + pid + (activar ? ' | ' + formatCOP(diaria) + ' por día, ' + gr + ' días de gracia' : ''), 'prestamo');
+    toast(activar ? 'Mora activada' : 'Mora desactivada', 's');
+    pintarDetallePrestamo(false);
+    refrescarVistaActual();
+  } catch(e) { toast('Error: ' + e.message, 'e'); }
 }
 
 function elegirOrigen(o) {
@@ -2107,6 +2149,12 @@ async function guardarOrigen() {
 ══════════════════════════════════════════ */
 var calcOrigen = 'mio';
 
+/* Días de gracia del formulario: vacío o inválido = 3, entre 0 y 30 */
+function graciaCalc() {
+  var v = document.getElementById('calc-mora-gracia').value.trim(), n = parseInt(v, 10);
+  return (v === '' || !isFinite(n)) ? 3 : Math.min(30, Math.max(0, n));
+}
+
 function elegirOrigenCalc(o) {
   calcOrigen = o;
   document.querySelectorAll('.calc-origen .chip').forEach(function(b){
@@ -2129,6 +2177,8 @@ function limpiarCalculadora() {
   document.getElementById('calc-capital-tia').value = '';
   document.getElementById('calc-pct-tia').value  = '';
   document.getElementById('calc-pct-general').checked = true;
+  document.getElementById('calc-mora').checked = true;
+  document.getElementById('calc-mora-gracia').value = '3';
   alternarPctGeneral('calc');
   elegirOrigenCalc('mio');
   updateCalc();
@@ -2155,6 +2205,11 @@ function updateCalc() {
   var mod = document.getElementById('calc-modalidad').value || 'quincenal';
   var fec = document.getElementById('calc-fecha').value;
   var cont = document.getElementById('plan-pagos-container');
+  var conMora = document.getElementById('calc-mora').checked, gracia = graciaCalc();
+  document.getElementById('calc-mora-campos').style.display = conMora ? '' : 'none';
+  document.getElementById('calc-mora-preview').textContent = conMora
+    ? (imp && tp ? formatCOP(GSG.moraDiaria({ importe:imp, tasa:tp / 100, moraActiva:true })) + ' por día y por cuota después de ' + gracia + (gracia === 1 ? ' día' : ' días') + ' de gracia' : 'Escribe importe y tasa para ver la mora diaria')
+    : '';
   if (!imp || !n || !fec) {
     document.getElementById('res-cuota').textContent   = '$0';
     document.getElementById('res-total').textContent   = '$0';
@@ -2202,7 +2257,8 @@ async function guardarPrestamo() {
   if (calcOrigen === 'mixto' && !(o.capitalTia > 0 && o.capitalTia < imp)) { toast('En mixto, el capital de tu tía debe ser mayor que $0 y menor que el importe', 'e'); return; }
 
   var id = 'P_' + Date.now().toString().slice(-7);
-  var p  = { id:id, clienteId:cid, fecha:fec, importe:imp, modalidad:mod, tasa:tp / 100, numCuotas:nc, capitalTia:o.capitalTia, pctTia:o.pctTia };
+  var p  = { id:id, clienteId:cid, fecha:fec, importe:imp, modalidad:mod, tasa:tp / 100, numCuotas:nc, capitalTia:o.capitalTia, pctTia:o.pctTia,
+    moraActiva:document.getElementById('calc-mora').checked, moraGracia:graciaCalc() };
   try {
     await supaInsert('prestamos', p);
     await supaInsertMany('cuotas', generarCuotas(p));
@@ -2213,6 +2269,7 @@ async function guardarPrestamo() {
         (calcOrigen !== 'mio' ? ' (tía ' + formatCOP(o.capitalTia) + ', ' + (o.pctTia === null ? '% general' : Math.round(o.pctTia * 100) + '% del interés') + ')' : ''),
       'prestamo'
     );
+    if (p.moraActiva) registrarLog('Mora activada: ' + nombreCliente(cid), 'Préstamo ' + id + ' | ' + formatCOP(GSG.moraDiaria(p)) + ' por día, ' + p.moraGracia + ' días de gracia', 'prestamo');
     limpiarCalculadora();
     showPage('prestamos');
     verPrestamo(id);
@@ -2257,7 +2314,7 @@ function estadoCuota(c) {
   if (c.fechaVence === hoy) return 'hoy';
   return 'pendiente';
 }
-var ESTADO_TXT = { pagada:'Pagada', mora:'En mora', parcial:'Parcial', hoy:'Vence hoy', pendiente:'Pendiente' };
+var ESTADO_TXT = { pagada:'Pagada', mora:'Vencida', parcial:'Parcial', hoy:'Vence hoy', pendiente:'Pendiente' };
 function chipEstado(c) { var e = estadoCuota(c); return '<span class="estado ' + e + '">' + ESTADO_TXT[e] + '</span>'; }
 function relativoTexto(fecha) {
   var hoy = GSG.hoyLocal();
@@ -2271,7 +2328,7 @@ function filaCobro(c) {
   var meta = pagada ? cuotaDeTexto(c) + ' · pagada el ' + fechaCorta(c.fechaPago) : cuotaDeTexto(c) + ' · ' + venceTexto(c);
   return '<div class="fila"><div class="fila-top">' +
       '<div class="fila-info fila-click" onclick="verPrestamo(\'' + c.prestamoId + '\')"><span class="fila-nombre">' + nombre + '</span>' +
-      '<span class="fila-meta' + (!pagada && c.fechaVence < hoy ? ' mora' : '') + '">' + meta + '</span></div>' +
+      '<span class="fila-meta' + (!pagada && c.fechaVence < hoy ? ' mora' : '') + '">' + meta + '</span>' + moraLinea(c) + '</div>' +
       '<span class="fila-monto">' + formatCOP(pagada ? c.valor : saldoCuota(c)) + '</span>' +
       (pagada ? '' :
         '<button class="btn-wa" onclick="enviarWhatsApp(\'' + c.id + '\')" aria-label="Enviar recordatorio por WhatsApp a ' + nombre + '">' + ICONO.wa + '</button>' +
@@ -2320,9 +2377,10 @@ function renderCobros(q) {
   var pagosMes = todas.filter(function(c){ return (c.pagado || 0) > 0 && String(c.fechaPago || '').slice(0, 7) === mes; });
   var suma = function(arr){ return arr.reduce(function(s, c){ return s + saldoCuota(c); }, 0); };
   var maxMora = venc.reduce(function(m, c){ return Math.max(m, getDiasMora(c.fechaVence)); }, 0);
+  var moraVencT = venc.reduce(function(s, c){ return s + moraDe(c).pendiente; }, 0);
   document.getElementById('cobros-kpis').innerHTML =
     '<div class="kpi ink"><span class="kpi-label">Hoy por cobrar</span><span class="kpi-valor">' + formatCOP(suma(deHoy)) + '</span><span class="kpi-sub">' + deHoy.length + ' cuotas · ' + deHoy.filter(function(c){ return c.pagado > 0; }).length + ' con abono</span></div>' +
-    '<div class="kpi mora"><span class="kpi-label">Vencido</span><span class="kpi-valor">' + formatCOP(suma(venc)) + '</span><span class="kpi-sub">' + venc.length + ' cuotas' + (venc.length ? ' · máx. ' + maxMora + ' días' : '') + '</span></div>' +
+    '<div class="kpi mora"><span class="kpi-label">Vencido</span><span class="kpi-valor">' + formatCOP(suma(venc)) + '</span><span class="kpi-sub">' + venc.length + ' cuotas' + (venc.length ? ' · máx. ' + maxMora + ' días' : '') + (moraVencT ? ' · + ' + formatCOP(moraVencT) + ' de mora' : '') + '</span></div>' +
     '<div class="kpi"><span class="kpi-label">Próximos 7 días</span><span class="kpi-valor">' + formatCOP(suma(prox)) + '</span><span class="kpi-sub">' + prox.length + ' cuotas</span></div>' +
     '<div class="kpi"><span class="kpi-label">Cobrado este mes</span><span class="kpi-valor acento">' + formatCOP(pagosMes.reduce(function(s, c){ return s + (c.pagado || 0); }, 0)) + '</span><span class="kpi-sub">' + pagosMes.length + ' cuotas con pagos</span></div>';
 
@@ -2357,7 +2415,7 @@ function renderCobros(q) {
       '<td class="der num">' + formatCOP(c.valor) + '</td>' +
       '<td style="min-width:150px"><div class="celda-doble"><span class="num" style="font-size:13px;color:' + (c.pagado > 0 ? 'var(--accent-d)' : 'var(--text2)') + '">' + (c.pagado > 0 ? formatCOP(c.pagado) : 'Sin abonos') + '</span>' +
         '<div class="barra" style="width:120px" aria-hidden="true"><i style="width:' + pct + '%"></i></div></div></td>' +
-      '<td class="der num"><strong>' + formatCOP(saldoCuota(c)) + '</strong></td>' +
+      '<td class="der num"><div class="celda-doble" style="align-items:flex-end"><strong>' + formatCOP(saldoCuota(c)) + '</strong>' + moraLinea(c) + '</div></td>' +
       '<td>' + chipEstado(c) + '</td>' +
       '<td><div style="display:flex;gap:8px;justify-content:flex-end">' + (e === 'pagada' ? '<span class="txt-muted">—</span>' :
         '<button class="btn-wa" onclick="enviarWhatsApp(\'' + c.id + '\')" aria-label="Enviar recordatorio por WhatsApp a ' + nombre + '">' + ICONO.wa + '</button>' +
@@ -2374,7 +2432,25 @@ function saldoPrestamo(pid) { return cuotasDePrestamo(pid).reduce(function(s, c)
 var formatearEntradaMonto = GSG.formatearEntradaMonto, montoATexto = GSG.montoATexto;
 function alEscribirMonto(inp) {
   inp.value = formatearEntradaMonto(inp.value);
+  inp.removeAttribute('data-auto');
   actualizarAvisoPago();
+}
+
+/* ── Mora: ayudas para mostrarla ── */
+function moraDe(c, fecha) { return GSG.moraCuota(prestamoPorId(c.prestamoId), c, fecha || GSG.hoyLocal()); }
+function totalCuota(c, fecha) { return saldoCuota(c) + moraDe(c, fecha).pendiente; }
+function fechaFinGracia(c) {
+  var p = prestamoPorId(c.prestamoId), g = (p && p.moraGracia !== null && p.moraGracia !== undefined) ? Number(p.moraGracia) : 3;
+  var d = new Date(c.fechaVence + 'T12:00:00'); d.setDate(d.getDate() + g);
+  return GSG.hoyLocal(d);
+}
+/* "+ $2.664 de mora (4 días)" · "Día 2 de 3 de gracia" */
+function moraLinea(c) {
+  if (!saldoCuota(c)) return '';
+  var m = moraDe(c);
+  if (m.pendiente > 0) return '<span class="mora-linea">+ ' + formatCOP(m.pendiente) + ' de mora (' + m.dias + (m.dias === 1 ? ' día' : ' días') + ')</span>';
+  if (m.enGracia) return '<span class="gracia-linea">Día ' + m.dias + ' de ' + m.gracia + ' de gracia</span>';
+  return '';
 }
 
 function abrirModalPago(cid) {
@@ -2386,58 +2462,81 @@ function abrirModalPago(cid) {
     '<div><span>Valor cuota</span><strong>' + formatCOP(c.valor) + '</strong></div>' +
     '<div><span>Ya abonado</span><strong>' + formatCOP(c.pagado || 0) + '</strong></div>' +
     '<div><span>Saldo cuota</span><strong>' + formatCOP(sal) + '</strong></div>';
-  document.getElementById('pago-monto').value = montoATexto(sal);
   document.getElementById('pago-fecha').value = GSG.hoyLocal();
+  ponerMontoAuto(totalCuota(c, GSG.hoyLocal()));
   document.getElementById('pago-obs').value = '';
   actualizarAvisoPago();
   abrirHoja('modal-pago');
 }
 
+function fechaPagoForm() { return document.getElementById('pago-fecha').value || GSG.hoyLocal(); }
+function cent(n) { return Math.round((Number(n) || 0) * 100); }
+/* Monto sugerido por la app; si la fecha cambia y el monto no se editó a mano, se recalcula */
+function ponerMontoAuto(n) {
+  var inp = document.getElementById('pago-monto');
+  inp.value = montoATexto(n);
+  inp.setAttribute('data-auto', String(n));
+}
+function alCambiarFechaPago() {
+  var c = cuotaPorId(document.getElementById('pago-cuota-id').value), inp = document.getElementById('pago-monto');
+  if (c && inp.getAttribute('data-auto') !== null && cent(GSG.parseMonto(inp.value)) === cent(inp.getAttribute('data-auto'))) ponerMontoAuto(totalCuota(c, fechaPagoForm()));
+  actualizarAvisoPago();
+}
+
 function atajoPago(tipo) {
   var c = cuotaPorId(document.getElementById('pago-cuota-id').value); if (!c) return;
-  var inp = document.getElementById('pago-monto'), sal = saldoCuota(c);
-  if (tipo === 'completo') inp.value = montoATexto(sal);
-  else if (tipo === 'mitad') inp.value = montoATexto(Math.round(sal / 2));
+  var inp = document.getElementById('pago-monto'), tot = totalCuota(c, fechaPagoForm());
+  inp.removeAttribute('data-auto');
+  if (tipo === 'completo') ponerMontoAuto(tot);
+  else if (tipo === 'mitad') inp.value = montoATexto(Math.round(tot / 2));
   else { inp.value = ''; inp.focus(); }
   actualizarAvisoPago();
 }
 
 function actualizarAvisoPago() {
   var cid = document.getElementById('pago-cuota-id').value, c = cuotaPorId(cid); if (!c) return;
+  var fecha = fechaPagoForm(), p = prestamoPorId(c.prestamoId), m = moraDe(c, fecha);
   var monto = GSG.parseMonto(document.getElementById('pago-monto').value);
-  var sal = saldoCuota(c), aviso = document.getElementById('pago-aviso'), btn = document.getElementById('pago-boton');
+  var tot = saldoCuota(c) + m.pendiente, aviso = document.getElementById('pago-aviso'), btn = document.getElementById('pago-boton');
+  var mora = document.getElementById('pago-mora');
+  if (m.pendiente > 0) mora.innerHTML = '<div class="aviso mora"><div class="aviso-titulo"><span>Mora pendiente · ' + m.dias + (m.dias === 1 ? ' día' : ' días') + ' de atraso</span><span>' + formatCOP(m.pendiente) + '</span></div><p>' + formatCOP(m.diaria) + ' por día. Se cubre primero, antes de la cuota.</p></div>';
+  else if (m.enGracia) mora.innerHTML = '<div class="aviso acento"><div class="aviso-titulo"><span>Día ' + m.dias + ' de ' + m.gracia + ' de gracia</span></div><p>Si paga a más tardar el ' + fechaCorta(fechaFinGracia(c)) + ', no se cobra mora.</p></div>';
+  else mora.innerHTML = '';
   document.querySelectorAll('.pago-atajos .chip').forEach(function(b){
     var t = b.getAttribute('data-atajo');
-    var on = (t === 'completo' && monto === sal) || (t === 'mitad' && monto === Math.round(sal / 2) && monto !== sal);
+    var on = (t === 'completo' && cent(monto) === cent(tot)) || (t === 'mitad' && cent(monto) === cent(Math.round(tot / 2)) && cent(monto) !== cent(tot));
     b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
   });
   if (!(monto > 0)) { aviso.innerHTML = ''; btn.disabled = true; btn.textContent = 'Registrar pago'; return; }
-  var r = GSG.distribuirPago(cuotasDePrestamo(c.prestamoId), cid, monto, '', '');
+  var r = GSG.distribuirPago(cuotasDePrestamo(c.prestamoId), cid, monto, fecha, '', p);
   btn.disabled = !r.ok;
   if (!r.ok) {
-    aviso.innerHTML = '<div class="aviso mora"><div class="aviso-titulo"><span>El monto supera el saldo del préstamo</span></div>' +
-      '<p>Lo máximo que se puede registrar es ' + formatCOP(r.maximo) + '.</p>' +
+    aviso.innerHTML = '<div class="aviso mora"><div class="aviso-titulo"><span>El monto supera lo que se debe del préstamo</span></div>' +
+      '<p>Lo máximo que se puede registrar es ' + formatCOP(r.maximo) + (p && p.moraActiva ? ' (incluye la mora)' : '') + '.</p>' +
       '<button class="btn-texto" style="align-self:flex-start" onclick="document.getElementById(\'pago-monto\').value=montoATexto(' + r.maximo + ');actualizarAvisoPago()">Usar ' + formatCOP(r.maximo) + '</button></div>';
     btn.textContent = 'Registrar pago';
     return;
   }
   var primero = r.cambios[0];
   var pct = Math.min(100, Math.round(primero.patch.pagado / c.valor * 100));
+  var lineaMora = r.moraTotal > 0 ? '<p>' + formatCOP(r.moraTotal) + ' van primero a la mora.</p>' : '';
   if (r.cambios.length === 1 && primero.patch.estado === 'pendiente') {
+    var moraResta = m.pendiente - primero.abonoMora;
     aviso.innerHTML = '<div class="aviso mora"><div class="aviso-titulo"><span>Abono parcial</span><span>' + pct + '%</span></div>' +
-      '<div class="barra" aria-hidden="true"><i style="width:' + pct + '%"></i></div>' +
-      '<p>Quedan ' + formatCOP(c.valor - primero.patch.pagado) + ' pendientes en esta cuota. Sigue abierta hasta completar el pago.</p></div>';
+      '<div class="barra" aria-hidden="true"><i style="width:' + pct + '%"></i></div>' + lineaMora +
+      '<p>Quedan ' + formatCOP(c.valor - primero.patch.pagado) + ' pendientes en esta cuota' + (moraResta > 0 ? ' y ' + formatCOP(moraResta) + ' de mora' : '') + '. Sigue abierta hasta completar el pago.</p></div>';
     btn.textContent = 'Registrar abono de ' + formatCOP(monto);
   } else if (r.cambios.length === 1) {
     var sig = cuotasPorCobrar(36500).filter(function(x){ return x.prestamoId === c.prestamoId && x.id !== cid; })[0];
     aviso.innerHTML = '<div class="aviso acento"><div class="aviso-titulo"><span>Pago completo</span><span>100%</span></div>' +
-      '<div class="barra" aria-hidden="true"><i style="width:100%"></i></div>' +
+      '<div class="barra" aria-hidden="true"><i style="width:100%"></i></div>' + lineaMora +
       '<p>' + etiquetaCuota(cid) + ' queda pagada.' + (sig ? ' Sigue la ' + etiquetaCuota(sig.id).toLowerCase() + ' (' + venceTexto(sig) + ').' : ' Con esto el préstamo queda al día.') + '</p></div>';
     btn.textContent = 'Registrar pago de ' + formatCOP(monto);
   } else {
     aviso.innerHTML = '<div class="aviso acento"><div class="aviso-titulo"><span>El excedente pasa a otras cuotas</span></div>' +
       r.cambios.map(function(ch){
-        return '<p>' + etiquetaCuota(ch.id) + ': ' + formatCOP(ch.abono) + (ch.patch.estado === 'pagado' ? ' · queda pagada' : ' · abono, quedan ' + formatCOP(cuotaPorId(ch.id).valor - ch.patch.pagado)) + '</p>';
+        return '<p>' + etiquetaCuota(ch.id) + ': ' + formatCOP(ch.abono) + (ch.abonoMora > 0 ? ' (incluye ' + formatCOP(ch.abonoMora) + ' de mora)' : '') +
+          (ch.patch.estado === 'pagado' ? ' · queda pagada' : ' · abono, quedan ' + formatCOP(cuotaPorId(ch.id).valor - ch.patch.pagado)) + '</p>';
       }).join('') + '</div>';
     btn.textContent = 'Registrar pago de ' + formatCOP(monto);
   }
@@ -2452,6 +2551,10 @@ function refrescarVistaActual() {
   actualizarShell();
 }
 
+function textoCambio(ch) {
+  return etiquetaCuota(ch.id) + ': ' + formatCOP(ch.abono) + (ch.abonoMora > 0 ? ' (incluye ' + formatCOP(ch.abonoMora) + ' de mora)' : '') + (ch.patch.estado === 'pagado' ? '' : ' abono');
+}
+
 async function confirmarPago() {
   var cid   = document.getElementById('pago-cuota-id').value;
   var monto = GSG.parseMonto(document.getElementById('pago-monto').value);
@@ -2461,16 +2564,14 @@ async function confirmarPago() {
   if (!fecha)       { toast('Selecciona la fecha', 'e'); return; }
   var c = cuotaPorId(cid);
   if (!c) { toast('Cuota no encontrada', 'e'); return; }
-  var r = GSG.distribuirPago(cuotasDePrestamo(c.prestamoId), cid, monto, fecha, obs);
-  if (!r.ok) { toast('El monto supera el saldo del préstamo (' + formatCOP(r.maximo) + ')', 'e'); return; }
+  var r = GSG.distribuirPago(cuotasDePrestamo(c.prestamoId), cid, monto, fecha, obs, prestamoPorId(c.prestamoId));
+  if (!r.ok) { toast('El monto supera lo que se debe del préstamo (' + formatCOP(r.maximo) + ')', 'e'); return; }
 
   var saldoCuotaAntes = saldoCuota(c), nombre = nombreCliente(c.clienteId);
   var btn = document.getElementById('pago-boton');
   btn.disabled = true; btn.textContent = 'Registrando…';
   var res = await GSG.aplicarCambios(r.cambios, function(id, patch){ return supaUpdate('cuotas', id, patch); });
-  var desglose = res.aplicados.map(function(ch){
-    return etiquetaCuota(ch.id) + ': ' + formatCOP(ch.abono) + (ch.patch.estado === 'pagado' ? '' : ' abono');
-  }).join(' · ');
+  var desglose = res.aplicados.map(textoCambio).join(' · ');
 
   if (res.error) {
     try { await cargarTabla('cuotas'); } catch(e) {}
@@ -2483,10 +2584,13 @@ async function confirmarPago() {
 
   cerrarHoja('modal-pago');
   var saldoPrest = saldoPrestamo(c.prestamoId);
+  var moraPendPrest = cuotasDePrestamo(c.prestamoId).reduce(function(s, x){ return s + moraDe(x, fecha).pendiente; }, 0);
   registrarLog('Cobro registrado: ' + formatCOP(r.total) + ' — ' + nombre + ' / ' + c.label,
-    desglose + ' | Saldo del préstamo: ' + formatCOP(saldoPrest), 'cobro');
-  mostrarRecibo({ cuota:c, cliente:clientePorId(c.clienteId), abono:r.total, cambios:r.cambios,
-    saldoAntes:saldoCuotaAntes, saldoDespues:saldoCuota(cuotaPorId(cid)), saldoPrestamo:saldoPrest, fecha:fecha, obs:obs });
+    desglose + (r.moraTotal > 0 ? ' | Mora cobrada: ' + formatCOP(r.moraTotal) : '') + ' | Saldo del préstamo: ' + formatCOP(saldoPrest) +
+    (moraPendPrest > 0 ? ' + ' + formatCOP(moraPendPrest) + ' de mora' : ''), 'cobro');
+  mostrarRecibo({ cuota:c, cliente:clientePorId(c.clienteId), abono:r.total, cambios:r.cambios, moraTotal:r.moraTotal,
+    saldoAntes:saldoCuotaAntes, saldoDespues:saldoCuota(cuotaPorId(cid)), moraCuotaPend:moraDe(cuotaPorId(cid), fecha).pendiente,
+    saldoPrestamo:saldoPrest, moraPendiente:moraPendPrest, fecha:fecha, obs:obs });
   refrescarVistaActual();
   toast(r.cambios.length === 1 && r.cambios[0].patch.estado === 'pendiente' ? 'Abono de ' + formatCOP(r.total) + ' registrado' : 'Pago registrado', 's');
 }
@@ -2510,9 +2614,13 @@ function mostrarRecibo(d) {
       row('Comprobante', d.folio) +
       row('Fecha', d.ahora) +
       row('Fecha de pago', formatDate(d.fecha)) +
-      d.cambios.map(function(ch){ return row(etiquetaCuota(ch.id), formatCOP(ch.abono) + (ch.patch.estado === 'pagado' ? ' · pagada' : ' · abono')); }).join('') +
-      (d.saldoDespues > 0 ? row('Queda en la cuota', '<span style="color:var(--mora)">' + formatCOP(d.saldoDespues) + '</span>') : '') +
+      d.cambios.map(function(ch){
+        return row(etiquetaCuota(ch.id), formatCOP(ch.abonoCuota) + (ch.patch.estado === 'pagado' ? ' · pagada' : ' · abono')) +
+          (ch.abonoMora > 0 ? row('Mora ' + etiquetaCuota(ch.id).toLowerCase(), '<span style="color:var(--mora)">' + formatCOP(ch.abonoMora) + '</span>') : '');
+      }).join('') +
+      (d.saldoDespues > 0 ? row('Queda en la cuota', '<span style="color:var(--mora)">' + formatCOP(d.saldoDespues) + (d.moraCuotaPend > 0 ? ' + ' + formatCOP(d.moraCuotaPend) + ' de mora' : '') + '</span>') : '') +
       row('Saldo total del préstamo', formatCOP(d.saldoPrestamo)) +
+      (d.moraPendiente > 0 ? row('Mora pendiente', '<span style="color:var(--mora)">' + formatCOP(d.moraPendiente) + '</span>') : '') +
       (d.obs ? row('Nota', esc(d.obs)) : '') +
     '</div>';
   abrirHoja('modal-recibo');
@@ -2536,8 +2644,11 @@ function enviarComprobanteWhatsApp() {
   var nombre = d.cliente.nombre.split(' ')[0];
   var msg = '*Inversiones GSG* · Comprobante ' + d.folio + '\n\n' +
     'Hola *' + nombre + '*, registramos tu pago de *' + formatCOP(d.abono) + '* del ' + formatDate(d.fecha) + '.\n' +
-    d.cambios.map(function(ch){ return '• ' + etiquetaCuota(ch.id) + ': ' + formatCOP(ch.abono) + (ch.patch.estado === 'pagado' ? ' (pagada)' : ' (abono)'); }).join('\n') +
-    '\n\nSaldo pendiente del préstamo: *' + formatCOP(d.saldoPrestamo) + '*.\n¡Gracias por tu pago!';
+    d.cambios.map(function(ch){
+      return '• ' + etiquetaCuota(ch.id) + ': ' + formatCOP(ch.abonoCuota) + (ch.patch.estado === 'pagado' ? ' (pagada)' : ' (abono)') +
+        (ch.abonoMora > 0 ? '\n• Mora ' + etiquetaCuota(ch.id).toLowerCase() + ': ' + formatCOP(ch.abonoMora) : '');
+    }).join('\n') +
+    '\n\nSaldo pendiente del préstamo: *' + formatCOP(d.saldoPrestamo) + '*' + (d.moraPendiente > 0 ? ' más *' + formatCOP(d.moraPendiente) + '* de mora' : '') + '.\n¡Gracias por tu pago!';
   window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msg), '_blank');
 }
 
@@ -2928,7 +3039,13 @@ function enviarWhatsApp(cuotaId) {
   var valor     = formatCOP(Math.max(0, c.valor - (c.pagado||0)));
   var vence     = formatDate(c.fechaVence);
   var mora      = getDiasMora(c.fechaVence);
-  var moraTexto = mora > 0 ? ' ⚠️ Lleva ' + mora + ' día(s) de mora.' : '';
+  var pr        = prestamoPorId(c.prestamoId), md = moraDe(c);
+  var moraTexto = mora > 0 ? ' ⚠️ Lleva ' + mora + ' día(s) de atraso.' : '';
+  if (pr && pr.moraActiva) {
+    if (md.pendiente > 0) moraTexto = ' ⚠️ Lleva ' + md.dias + ' días de atraso y una mora de *' + formatCOP(md.pendiente) + '*. Total a pagar hoy: *' + formatCOP(totalCuota(c)) + '*.';
+    else if (md.enGracia) moraTexto = ' Ya venció, pero aún estás en los días de gracia: si pagas a más tardar el *' + formatDate(fechaFinGracia(c)) + '* no se cobra mora.';
+    else if (md.dias === 0 && GSG.moraDiaria(pr) > 0) moraTexto = ' Recuerda: tienes ' + md.gracia + ' días de gracia, hasta el *' + formatDate(fechaFinGracia(c)) + '*, antes de que se cobre mora.';
+  }
 
   var msg = '🏦 *Inversiones GSG*\n\n' +
     'Hola *' + nombre + '*, te recordamos que tu *' + c.label + '* ' +
