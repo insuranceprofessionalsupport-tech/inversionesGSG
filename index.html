@@ -18,7 +18,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
 <!-- Subir ?v= en cada publicación de logica.js para que el navegador no use la copia vieja -->
-<script src="logica.js?v=3.2"></script>
+<script src="logica.js?v=3.3"></script>
 <style>
 /* ══════════════════════════════════════════
    INVERSIONES GSG · Sistema visual "Claridad"
@@ -957,6 +957,21 @@ input:disabled{opacity:.6}
   </div>
 </div>
 
+<div class="modal-backdrop" id="hoja-perdonar">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="perdonar-titulo">
+    <div class="agarre" aria-hidden="true"></div>
+    <div class="modal-title"><div><span id="perdonar-titulo">Perdonar mora</span><div class="modal-sub" id="perdonar-sub"></div></div><button class="cerrar-x" onclick="cerrarHoja('hoja-perdonar')" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <input type="hidden" id="perdonar-cuota-id">
+    <input type="hidden" id="perdonar-fecha">
+    <div class="pago-resumen" id="perdonar-info"></div>
+    <label for="perdonar-monto">¿Cuánto perdonas?</label>
+    <div class="campo-monto"><span aria-hidden="true">$</span><input id="perdonar-monto" type="text" inputmode="decimal" autocomplete="off" oninput="this.value=formatearEntradaMonto(this.value);actualizarAvisoPerdonar()"></div>
+    <div id="perdonar-aviso" aria-live="polite" style="margin-top:12px"></div>
+    <div class="form-group" style="margin-top:12px"><label for="perdonar-motivo">Motivo (opcional)</label><input type="text" id="perdonar-motivo" placeholder="Acuerdo de pago, cliente cumplido…"></div>
+    <button class="btn btn-ink btn-lg btn-block" id="perdonar-boton" onclick="confirmarPerdonarMora()">Perdonar mora</button>
+  </div>
+</div>
+
 <div id="toast-container"></div>
 
 <!-- ═══════ SCRIPT ═══════ -->
@@ -1166,8 +1181,10 @@ async function registrarLog(accion, detalles, tipo) {
     await supaFetch(TABLA.logs, { method:'POST', body: GSG.filaDeLog(entrada) });
     // Actualizar cache de DB también
     DB.logs.unshift(entrada);
+    return true;
   } catch(e) {
     console.warn('registrarLog: no se pudo guardar en Supabase —', e.message);
+    return false;
   }
 }
 
@@ -1627,6 +1644,7 @@ function renderDashboard() {
   }
   var moraPend = cuotas.reduce(function(s, c){ return s + moraDe(c).pendiente; }, 0);
   var moraCob  = cuotas.reduce(function(s, c){ return s + (Number(c.moraPagada) || 0); }, 0);
+  var moraPerd = cuotas.reduce(function(s, c){ return s + (Number(c.moraPerdonada) || 0); }, 0);
   document.getElementById('dash-stats').innerHTML = [
     kpi('En la calle',      formatCOP(sal),  'Saldo por cobrar', 'ink'),
     kpi('Interés ganado',   formatCOP(int_), 'Ganancia neta'),
@@ -1635,7 +1653,7 @@ function renderDashboard() {
     kpi('En mora',          String(mora),    mora === 1 ? 'Préstamo vencido' : 'Préstamos vencidos', mora ? 'mora' : ''),
     kpi('Clientes',         String(clientes.length), 'Registrados'),
     kpi('Mora por cobrar',  formatCOP(moraPend), 'Cuotas pasadas de la gracia', moraPend ? 'mora' : ''),
-    kpi('Mora cobrada',     formatCOP(moraCob),  'Total recibido por mora')
+    kpi('Mora cobrada',     formatCOP(moraCob),  moraPerd > 0 ? 'Recibida · perdonada ' + formatCOP(moraPerd) : 'Total recibido por mora')
   ].join('');
 
   renderHoy();
@@ -2085,7 +2103,8 @@ function pintarDetallePrestamo(editarOrigen) {
     if ((e === 'mora' || e === 'hoy') && c.pagado > 0) txt += ' · abonó ' + formatCOP(c.pagado);
     return '<div class="cuota-fila ' + e + '"><span class="cuota-num" aria-hidden="true">' + (e === 'pagada' ? ICONO.check : (c.num + 1)) + '</span>' +
       '<div class="fila-info"><span class="cuota-fecha">Cuota ' + (c.num + 1) + ' · ' + fechaCorta(c.fechaVence) + '</span><span class="cuota-estado">' + txt + '</span>' + moraLinea(c) + '</div>' +
-      '<span class="fila-monto">' + formatCOP(c.valor) + '</span></div>';
+      '<div class="celda-doble" style="align-items:flex-end"><span class="fila-monto">' + formatCOP(c.valor) + '</span>' +
+      (moraDe(c).pendiente > 0 ? '<button class="btn-texto" style="padding:0;min-height:44px" aria-label="Perdonar mora de la cuota ' + (c.num + 1) + '" onclick="abrirPerdonarMora(\'' + c.id + '\')">Perdonar mora</button>' : '') + '</div></div>';
   }).join('') + '</div>';
 
   if (proxima) {
@@ -2453,6 +2472,77 @@ function moraLinea(c) {
   return '';
 }
 
+/* ── Perdonar mora ── */
+/* Fecha de referencia para perdonar: la del pago si es anterior a hoy, si no hoy */
+function fechaPerdon() {
+  var pago = document.getElementById('modal-pago'), hoy = GSG.hoyLocal();
+  if (pago && pago.classList.contains('open')) { var f = fechaPagoForm(); return f < hoy ? f : hoy; }
+  return hoy;
+}
+
+function abrirPerdonarMora(cid, fecha) {
+  var c = cuotaPorId(cid); if (!c) return;
+  fecha = fecha || GSG.hoyLocal();
+  document.getElementById('perdonar-fecha').value = fecha;
+  var m = moraDe(c, fecha);
+  if (!(m.pendiente > 0)) { toast('Esta cuota no tiene mora pendiente', 'e'); return; }
+  document.getElementById('perdonar-cuota-id').value = cid;
+  document.getElementById('perdonar-sub').textContent = nombreCliente(c.clienteId) + ' · ' + cuotaDeTexto(c) +
+    (fecha === GSG.hoyLocal() ? ' · ' + venceTexto(c) : ' · mora al ' + fechaCorta(fecha));
+  document.getElementById('perdonar-info').innerHTML =
+    '<div><span>Mora acumulada</span><strong>' + formatCOP(m.total) + '</strong></div>' +
+    '<div><span>Pagada o perdonada</span><strong>' + formatCOP(m.pagada + m.perdonada) + '</strong></div>' +
+    '<div><span>Pendiente</span><strong style="color:var(--mora)">' + formatCOP(m.pendiente) + '</strong></div>';
+  document.getElementById('perdonar-monto').value = montoATexto(m.pendiente);
+  document.getElementById('perdonar-motivo').value = '';
+  actualizarAvisoPerdonar();
+  abrirHoja('hoja-perdonar');
+}
+
+function actualizarAvisoPerdonar() {
+  var c = cuotaPorId(document.getElementById('perdonar-cuota-id').value); if (!c) return;
+  var monto = GSG.parseMonto(document.getElementById('perdonar-monto').value);
+  var fecha = document.getElementById('perdonar-fecha').value || GSG.hoyLocal();
+  var r = GSG.perdonarMora(prestamoPorId(c.prestamoId), c, monto, fecha);
+  var aviso = document.getElementById('perdonar-aviso'), btn = document.getElementById('perdonar-boton');
+  btn.disabled = !r.ok;
+  if (!r.ok) {
+    aviso.innerHTML = monto > 0 ? '<div class="aviso mora"><p>Lo máximo que se puede perdonar es ' + formatCOP(r.maximo) + '.</p></div>' : '';
+    btn.textContent = 'Perdonar mora';
+    return;
+  }
+  var resta = moraDe(c, fecha).pendiente - r.perdonado, sigue = saldoCuota(c) > 0;
+  aviso.innerHTML = '<div class="aviso acento"><p>' + (resta > 0 ? 'Quedan ' + formatCOP(resta) + ' de mora pendiente.' : 'La mora de esta cuota queda en $0.') +
+    (sigue ? ' Si la cuota sigue sin pagarse, la mora vuelve a correr desde mañana.' : '') + '</p></div>';
+  btn.textContent = 'Perdonar ' + formatCOP(r.perdonado);
+}
+
+async function confirmarPerdonarMora() {
+  var cid = document.getElementById('perdonar-cuota-id').value, c = cuotaPorId(cid); if (!c) return;
+  var monto = GSG.parseMonto(document.getElementById('perdonar-monto').value);
+  var motivo = document.getElementById('perdonar-motivo').value.trim();
+  var fecha = document.getElementById('perdonar-fecha').value || GSG.hoyLocal();
+  var antes = moraDe(c, fecha).pendiente;
+  var r = GSG.perdonarMora(prestamoPorId(c.prestamoId), c, monto, fecha);
+  if (!r.ok) { toast('Lo máximo que se puede perdonar es ' + formatCOP(r.maximo), 'e'); return; }
+  var btn = document.getElementById('perdonar-boton');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  try {
+    await supaUpdate('cuotas', cid, r.patch);
+    var logOk = await registrarLog('Mora perdonada: ' + formatCOP(r.perdonado) + ' — ' + nombreCliente(c.clienteId) + ' / ' + c.label,
+      (motivo ? 'Motivo: ' + motivo + ' | ' : '') + 'Mora pendiente al ' + fechaCorta(fecha) + ': ' + formatCOP(antes) + ' → ' + formatCOP(moraDe(cuotaPorId(cid), fecha).pendiente), 'cobro');
+    cerrarHoja('hoja-perdonar');
+    toast('Mora perdonada: ' + formatCOP(r.perdonado), 's');
+    if (logOk === false) toast('La mora se perdonó, pero no se pudo guardar en la Auditoría', 'e');
+    var pago = document.getElementById('modal-pago');
+    if (pago && pago.classList.contains('open') && document.getElementById('pago-cuota-id').value === cid) alCambiarFechaPago();
+    refrescarVistaActual();
+  } catch(e) {
+    toast('Error: ' + e.message, 'e');
+    btn.disabled = false; btn.textContent = 'Perdonar ' + formatCOP(r.perdonado);
+  }
+}
+
 function abrirModalPago(cid) {
   var c = cuotaPorId(cid); if (!c) return;
   var sal = saldoCuota(c);
@@ -2499,7 +2589,8 @@ function actualizarAvisoPago() {
   var monto = GSG.parseMonto(document.getElementById('pago-monto').value);
   var tot = saldoCuota(c) + m.pendiente, aviso = document.getElementById('pago-aviso'), btn = document.getElementById('pago-boton');
   var mora = document.getElementById('pago-mora');
-  if (m.pendiente > 0) mora.innerHTML = '<div class="aviso mora"><div class="aviso-titulo"><span>Mora pendiente · ' + m.dias + (m.dias === 1 ? ' día' : ' días') + ' de atraso</span><span>' + formatCOP(m.pendiente) + '</span></div><p>' + formatCOP(m.diaria) + ' por día. Se cubre primero, antes de la cuota.</p></div>';
+  if (m.pendiente > 0) mora.innerHTML = '<div class="aviso mora"><div class="aviso-titulo"><span>Mora pendiente · ' + m.dias + (m.dias === 1 ? ' día' : ' días') + ' de atraso</span><span>' + formatCOP(m.pendiente) + '</span></div><p>' + formatCOP(m.diaria) + ' por día. Se cubre primero, antes de la cuota.</p>' +
+    (moraDe(c, fecha < GSG.hoyLocal() ? fecha : GSG.hoyLocal()).pendiente > 0 ? '<button class="btn-texto" style="align-self:flex-start" onclick="abrirPerdonarMora(\'' + cid + '\', fechaPerdon())">Perdonar mora</button>' : '') + '</div>';
   else if (m.enGracia) mora.innerHTML = '<div class="aviso acento"><div class="aviso-titulo"><span>Día ' + m.dias + ' de ' + m.gracia + ' de gracia</span></div><p>Si paga a más tardar el ' + fechaCorta(fechaFinGracia(c)) + ', no se cobra mora.</p></div>';
   else mora.innerHTML = '';
   document.querySelectorAll('.pago-atajos .chip').forEach(function(b){

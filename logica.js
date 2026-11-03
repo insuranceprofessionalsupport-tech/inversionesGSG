@@ -41,12 +41,21 @@
      pasada la gracia se cuenta desde el día 1. Una cuota pagada no genera mora nueva. */
   function moraCuota(p, c, fechaRef) {
     var gracia = (p && p.moraGracia !== null && p.moraGracia !== undefined) ? Number(p.moraGracia) : 3;
-    var pagada = Number(c.moraPagada) || 0;
+    var pagada = Number(c.moraPagada) || 0, perdonada = Number(c.moraPerdonada) || 0;
     var dias = Math.max(0, diasEntre(String(c.fechaVence), String(fechaRef)));
     var diaria = moraDiaria(p);
-    if (!diaria || saldoCentavos(c) === 0) return { dias: dias, gracia: gracia, diaria: diaria, enGracia: false, total: pagada, pagada: pagada, pendiente: 0 };
+    if (!diaria || saldoCentavos(c) === 0) return { dias: dias, gracia: gracia, diaria: diaria, enGracia: false, total: pagada, pagada: pagada, perdonada: perdonada, pendiente: 0 };
     var total = dias > gracia ? dias * diaria : 0;
-    return { dias: dias, gracia: gracia, diaria: diaria, enGracia: dias > 0 && dias <= gracia, total: total, pagada: pagada, pendiente: Math.max(0, total - pagada) };
+    return { dias: dias, gracia: gracia, diaria: diaria, enGracia: dias > 0 && dias <= gracia, total: total, pagada: pagada, perdonada: perdonada,
+             pendiente: Math.max(0, total - pagada - perdonada) };
+  }
+
+  /* Perdona mora acumulada hasta "fecha" (toda o una parte). Si la cuota sigue
+     sin pagarse, la mora vuelve a correr desde el día siguiente. */
+  function perdonarMora(p, c, monto, fecha) {
+    var pend = centavos(moraCuota(p, c, fecha).pendiente), cuanto = centavos(monto);
+    if (!(cuanto > 0) || pend <= 0 || cuanto > pend) return { ok: false, maximo: pend / 100 };
+    return { ok: true, perdonado: cuanto / 100, patch: { moraPerdonada: (centavos(c.moraPerdonada) + cuanto) / 100 } };
   }
 
   /* Reparte un pago: primero la cuota elegida y el excedente a las demás
@@ -203,6 +212,7 @@
     distribuirPago: distribuirPago,
     moraDiaria: moraDiaria,
     moraCuota: moraCuota,
+    perdonarMora: perdonarMora,
     aplicarCambios: aplicarCambios,
     origenPrestamo: origenPrestamo,
     repartoTia: repartoTia
